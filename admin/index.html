@@ -91,8 +91,7 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div class="tabs">
 <button class="tab active" onclick="showTab('fares',this)">💰 الأسعار</button>
 <button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
-<button class="tab" onclick="showTab('drivers',this)">👨‍✈️ طلبات السائقين</button>
-<button class="tab" onclick="showTab('monitor',this)">🗺️ مراقبة السائقين</button>
+<button class="tab" onclick="showTab('monitor',this)">🗺️ السائقون النشطون</button>
 </div>
 
 <div class="content">
@@ -114,15 +113,6 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div id="promosList"></div>
 <button class="btn small" onclick="addPromo()">➕ إضافة عرض</button>
 <button class="btn" onclick="savePromos()">💾 حفظ العروض</button>
-</div>
-</div>
-
-<!-- Drivers Panel -->
-<div class="panel" id="panel-drivers">
-<div class="card">
-<h2>👨‍✈️ طلبات تسجيل السائقين</h2>
-<div id="driversList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
-<button class="btn small" onclick="loadDrivers()">🔄 تحديث</button>
 </div>
 </div>
 
@@ -149,7 +139,7 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers') loadDrivers(); if(name==='monitor'){ loadMonitor(); loadRides(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='monitor'){ loadMonitor(); loadRides(); } }
 
 const CATS = [
   {id:'economy', ar:'🚗 اقتصادية'},
@@ -320,12 +310,17 @@ async function loadRides(){
       if(!v || typeof v !== 'object') return;
       const st = statusAr[v.status] || v.status || '?';
       const badgeClass = v.status==='completed' ? 'approved' : (v.status==='cancelled'||v.status==='error') ? 'rejected' : 'pending';
+      // تنبيه: مرفوضة أو لم تُقبل أبداً
+      let warn = '';
+      if(v.rejectedBy) warn = '<br>⚠️ <b style="color:#f77">رفضها السائق: '+(v.rejectedBy||'')+'</b>';
+      else if(v.status==='searching' && v.createdAt && (Date.now()-v.createdAt > 5*60*1000))
+        warn = '<br>⏰ <b style="color:#fa0">لم يقبلها أي سائق بعد (أكثر من 5 دقائق)</b>';
       box.innerHTML += `<div class="driver-card">
         <h3>🧾 ${id.substring(0,20)}... <span class="badge ${badgeClass}">${st}</span></h3>
         <div class="info">
         👤 ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
-        🚕 السائق: ${v.driverId||'لم يُعيَّن بعد'}<br>
+        🚕 السائق: ${v.driverId||'لم يُعيَّن بعد'}${warn}<br>
         🕐 ${v.createdAt ? new Date(v.createdAt).toLocaleString('ar') : ''}
         ${v.pickup ? `<br>📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
         ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
