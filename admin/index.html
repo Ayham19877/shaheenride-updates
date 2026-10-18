@@ -284,22 +284,23 @@ async function loadMonitor(){
     let count = 0;
     Object.keys(d).forEach(id=>{
       const v = d[id];
-      if(!v.online) return;
       const age = Math.round((now - (v.updatedAt||0))/1000);
-      if(age > 120) return; // stale
+      const isOnline = v.online && age <= 120;
+      const statusBadge = isOnline ? '<span class="badge approved">🟢 متصل</span>' : '<span class="badge rejected">⚪ غير متصل</span>';
+      const approvedBadge = v.approved ? ' ✅' : ' ⏳';
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
         📍 ${v.city||''} | ⭐ ${v.rating||5} (${v.trips||0} رحلة)<br>
-        📡 آخر تحديث: منذ ${age} ثانية<br>
-        🗺️ <a href="https://www.google.com/maps?q=${v.lat},${v.lon}" target="_blank" style="color:#D4AF37">عرض على الخريطة</a>
+        📡 آخر تحديث: ${age < 60 ? 'منذ '+age+' ثانية' : 'منذ '+Math.round(age/60)+' دقيقة'}<br>
+        ${v.lat ? `🗺️ <a href="https://www.google.com/maps?q=${v.lat},${v.lon}" target="_blank" style="color:#D4AF37">عرض على الخريطة</a>` : '📍 لا يوجد موقع'}
         </div>
       </div>`;
     });
-    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون متصلون الآن</p>';
+    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون مسجلون</p>';
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 // Auto-refresh monitor every 30s when visible
@@ -313,12 +314,14 @@ async function loadRides(){
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات</p>'; return; }
     box.innerHTML='';
-    const statusAr = {searching:'🔍 يبحث عن سائق', accepted:'✅ مقبولة', arriving:'🚗 السائق قادم', ontrip:'🛣️ بالطريق', completed:'✅ مكتملة', cancelled:'❌ ملغية'};
+    const statusAr = {searching:'🔍 يبحث عن سائق', accepted:'✅ مقبولة', arriving:'🚗 السائق قادم', ontrip:'🛣️ بالطريق', completed:'✅ مكتملة', cancelled:'❌ ملغية', error:'⚠️ خطأ'};
     Object.keys(d).reverse().forEach(id=>{
       const v = d[id];
-      const st = statusAr[v.status] || v.status;
+      if(!v || typeof v !== 'object') return;
+      const st = statusAr[v.status] || v.status || '?';
+      const badgeClass = v.status==='completed' ? 'approved' : (v.status==='cancelled'||v.status==='error') ? 'rejected' : 'pending';
       box.innerHTML += `<div class="driver-card">
-        <h3>🧾 ${id.substring(0,20)}... <span class="badge ${v.status==='completed'?'approved':v.status==='cancelled'?'rejected':'pending'}">${st}</span></h3>
+        <h3>🧾 ${id.substring(0,20)}... <span class="badge ${badgeClass}">${st}</span></h3>
         <div class="info">
         👤 ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
