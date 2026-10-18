@@ -88,6 +88,7 @@ header p{color:#888;font-size:14px;margin-top:5px}
 
 <div class="tabs">
 <button class="tab active" onclick="showTab('drivers',this)">🚕 السائقين</button>
+<button class="tab" onclick="showTab('apps',this)">📝 طلبات جديدة</button>
 <button class="tab" onclick="showTab('rides',this)">🧾 الرحلات</button>
 <button class="tab" onclick="showTab('riders',this)">👥 الزبائن</button>
 <button class="tab" onclick="showTab('fares',this)">💰 الأسعار</button>
@@ -161,6 +162,15 @@ header p{color:#888;font-size:14px;margin-top:5px}
 </div>
 </div>
 
+<!-- Driver Applications Panel -->
+<div class="panel" id="panel-apps">
+<div class="card">
+<h2>📝 طلبات السائقين الجديدة</h2>
+<div id="appsList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadApps()">🔄 تحديث</button>
+</div>
+</div>
+
 <!-- Riders Panel -->
 <div class="panel" id="panel-riders">
 <div class="card">
@@ -183,7 +193,63 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } }
+
+async function loadApps(){
+  const box = document.getElementById('appsList');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/driver_applications.json');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد طلبات جديدة</p>'; return; }
+    const sorted = Object.keys(d).filter(id=>{
+      const v = d[id];
+      return v && typeof v === 'object' && v.status==='pending';
+    }).sort((a,b)=>((d[b].createdAt||0)-(d[a].createdAt||0)));
+    box.innerHTML='';
+    let count = 0;
+    sorted.forEach(id=>{
+      const v = d[id];
+      count++;
+      const dt = v.createdAt ? new Date(v.createdAt) : null;
+      const dateStr = dt ? dt.toLocaleDateString('ar')+' '+dt.toLocaleTimeString('ar') : '';
+      box.innerHTML += `<div class="driver-card">
+        <h3>📝 ${v.name||'?'} <span class="badge">⏳ بانتظار الموافقة</span></h3>
+        <div class="info">
+        📱 <b>الهاتف:</b> ${v.phone||'—'}<br>
+        🚗 <b>السيارة:</b> ${v.carType||''} ${v.carModel||''} ${v.carYear||''} ${v.carColor||''}<br>
+        🔢 <b>اللوحة:</b> ${v.plate||'—'} | 📍 <b>المدينة:</b> ${v.city||'—'}<br>
+        📅 <b>التقديم:</b> ${dateStr}<br>
+        <div style="margin-top:10px;text-align:center">
+        <button class="btn small" style="background:#2a2" onclick="approveApp('${id}','${v.driverId||''}')">✅ قبول</button>
+        <button class="btn small" style="background:#a33;color:#fff" onclick="rejectApp('${id}')">❌ رفض</button>
+        </div>
+        </div>
+      </div>`;
+    });
+    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد طلبات جديدة</p>';
+    else box.innerHTML = `<p style="text-align:center;color:#D4AF37">📝 ${count} طلب بانتظار المراجعة</p>` + box.innerHTML;
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+
+async function approveApp(appId, driverId){
+  if(!confirm('قبول هذا السائق؟')) return;
+  try{
+    await fetch(FB+'/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"approved"'});
+    if(driverId) await fetch(FB+'/drivers/'+driverId+'/approved.json', {method:'PUT', body:'true'});
+    alert('تم قبول السائق ✅');
+    loadApps(); loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+
+async function rejectApp(appId){
+  if(!confirm('رفض هذا الطلب؟')) return;
+  try{
+    await fetch(FB+'/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"rejected"'});
+    alert('تم رفض الطلب');
+    loadApps();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
 
 // فلترة الرحلات حسب البحث
 let allRidesCache = {};
