@@ -89,10 +89,10 @@ header p{color:#888;font-size:14px;margin-top:5px}
 </div>
 
 <div class="tabs">
-<button class="tab active" onclick="showTab('fares')">💰 الأسعار</button>
-<button class="tab" onclick="showTab('promos')">🎁 العروض</button>
-<button class="tab" onclick="showTab('drivers')">👨‍✈️ طلبات السائقين</button>
-<button class="tab" onclick="showTab('monitor')">🗺️ مراقبة السائقين</button>
+<button class="tab active" onclick="showTab('fares',this)">💰 الأسعار</button>
+<button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
+<button class="tab" onclick="showTab('drivers',this)">👨‍✈️ طلبات السائقين</button>
+<button class="tab" onclick="showTab('monitor',this)">🗺️ مراقبة السائقين</button>
 </div>
 
 <div class="content">
@@ -149,7 +149,7 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); event.target.classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers') loadDrivers(); if(name==='monitor'){ loadMonitor(); loadRides(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers') loadDrivers(); if(name==='monitor'){ loadMonitor(); loadRides(); } }
 
 const CATS = [
   {id:'economy', ar:'🚗 اقتصادية'},
