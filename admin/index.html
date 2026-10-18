@@ -119,7 +119,12 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <!-- Monitor Panel -->
 <div class="panel" id="panel-monitor">
 <div class="card">
-<h2>🗺️ مراقبة السائقين المتصلين</h2>
+<h2>🗺️ مراقبة السائقين</h2>
+<div style="text-align:center;margin-bottom:12px">
+<button class="btn small" id="fltAll" onclick="setDriverFilter('all')">الكل</button>
+<button class="btn small" id="fltOn" onclick="setDriverFilter('online')">🟢 متصل</button>
+<button class="btn small" id="fltOff" onclick="setDriverFilter('offline')">🔴 غير متصل</button>
+</div>
 <div id="monitorList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadMonitor()">🔄 تحديث</button>
 </div>
@@ -267,6 +272,14 @@ async function setDriverStatus(id, status){
 loadFares();
 loadPromos();
 
+let driverFilter = 'all';
+function setDriverFilter(f){
+  driverFilter = f;
+  ['fltAll','fltOn','fltOff'].forEach(id=>document.getElementById(id).style.opacity='0.5');
+  document.getElementById(f==='all'?'fltAll':f==='online'?'fltOn':'fltOff').style.opacity='1';
+  loadMonitor();
+}
+
 async function loadMonitor(){
   const box = document.getElementById('monitorList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
@@ -281,6 +294,9 @@ async function loadMonitor(){
       const v = d[id];
       const age = Math.round((now - (v.updatedAt||0))/1000);
       const isOnline = v.online && age <= 120;
+      // تطبيق الفلتر
+      if(driverFilter==='online' && !isOnline) return;
+      if(driverFilter==='offline' && isOnline) return;
       const statusBadge = isOnline ? '<span class="badge approved">🟢 متصل</span>' : '<span class="badge rejected">⚪ غير متصل</span>';
       const approvedBadge = v.approved ? ' ✅' : ' ⏳';
       count++;
