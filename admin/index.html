@@ -375,6 +375,16 @@ function setDriverFilter(f){
   loadMonitor();
 }
 
+async function deleteDriver(driverId, driverName){
+  if(!confirm(`⚠️ حذف نهائي!\n\nهل أنت متأكد من حذف السائق "${driverName}" نهائياً من النظام؟\nلا يمكن التراجع!`)) return;
+  if(!confirm(`تأكيد أخير: حذف ${driverName} نهائياً؟`)) return;
+  try{
+    await fetch(FB+'/drivers/'+driverId+'.json', { method:'DELETE' });
+    alert('تم حذف السائق نهائياً ✅');
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+
 async function setSuspended(driverId, suspend){
   try{
     await fetch(FB+'/drivers/'+driverId+'/suspended.json', {
@@ -407,9 +417,10 @@ async function loadMonitor(){
       const suspBtn = v.suspended
         ? `<button class="btn small" onclick="setSuspended('${id}',false)">▶️ تفعيل</button>`
         : `<button class="btn small" onclick="setSuspended('${id}',true)">🚫 إيقاف</button>`;
+      const delBtn = `<button class="btn small" style="background:#a33;color:#fff" onclick="deleteDriver('${id}','${(v.name||id).replace(/'/g,'')}')">🗑️ حذف</button>`;
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge} ${suspBtn}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${suspBtn} ${delBtn}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
