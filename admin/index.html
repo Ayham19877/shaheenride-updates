@@ -294,7 +294,7 @@ async function loadSupportChats(){
       const icon = isDriver ? '🚕' : '👤';
       const idLabel = chatId.replace('driver_','').replace('rider_','');
       box.innerHTML += `<div class="driver-card" style="cursor:pointer;padding:10px" onclick="openChat('${chatId}')">
-        <b>${icon} ${senderName || idLabel}</b>
+        <b style="cursor:pointer;color:#D4AF37;text-decoration:underline" onclick="event.stopPropagation();showDriverInfo('${chatId}')">${icon} ${senderName || idLabel}</b>
         ${senderName ? `<br><span style="color:#888;font-size:12px">${idLabel}</span>` : ''}<br>
         <span style="color:#888;font-size:13px">${(last.text||'').substring(0,40)}</span>
       </div>`;
@@ -322,20 +322,63 @@ async function loadChatUserInfo(chatId){
     const d = await r.json();
     if(!d) return;
     let driver = null;
+    let driverId = null;
     for(const id of Object.keys(d)){
       const v = d[id];
       if(v && v.phone && v.phone.replace(/[^0-9]/g,'').endsWith(phone.replace(/[^0-9]/g,'').slice(-9))){
-        driver = v; break;
+        driver = v; driverId = id; break;
       }
     }
     if(driver){
       const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
+      window._currentDriver = driver;
+      window._currentDriverId = driverId;
       document.getElementById('chatTitle').innerHTML =
-        `💬 ${driver.name||''} <span style="font-size:13px;color:#888">` +
+        `💬 <span style="cursor:pointer;color:#D4AF37;text-decoration:underline" onclick="showDriverInfoPopup()">${driver.name||''}</span> ` +
+        `<span style="font-size:13px;color:#888">` +
         `📱 ${driver.phone||''} | 🚗 ${driver.car||''} ${driver.carModel||''} ${driver.color||''} | ` +
         `🔢 ${driver.plate||''} | 📍 ${driver.city||''} | 🚗 ${catNames[driver.carCategory]||'اقتصادية'}</span>`;
     }
   }catch(e){}
+}
+
+/** نافذة منبثقة بمعلومات السائق الكاملة. */
+function showDriverInfo(chatId){
+  openChat(chatId);
+  setTimeout(()=>showDriverInfoPopup(), 800);
+}
+
+function showDriverInfoPopup(){
+  const driver = window._currentDriver;
+  if(!driver){ alert('جاري تحميل معلومات السائق...'); return; }
+  const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
+  const status = driver.suspended ? '🚫 موقوف' : (driver.online ? '🟢 متصل' : '🔴 غير متصل');
+  // إنشاء النافذة المنبثقة
+  let modal = document.getElementById('driverInfoModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'driverInfoModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.onclick = (e)=>{ if(e.target===modal) modal.style.display='none'; };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div style="background:#1a1a1a;border:2px solid #D4AF37;border-radius:16px;padding:24px;max-width:400px;width:100%;position:relative">
+    <button onclick="document.getElementById('driverInfoModal').style.display='none'" style="position:absolute;top:10px;left:10px;background:#a33;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">✕</button>
+    <h2 style="color:#D4AF37;text-align:center;margin-bottom:16px">🚕 ${driver.name||'سائق'}</h2>
+    <div style="color:#fff;line-height:2">
+      📱 <b>الهاتف:</b> ${driver.phone||'—'}<br>
+      🚗 <b>السيارة:</b> ${driver.car||''} ${driver.carModel||''}<br>
+      🎨 <b>اللون:</b> ${driver.color||driver.carColor||'—'}<br>
+      🔢 <b>اللوحة:</b> ${driver.plate||'—'}<br>
+      📍 <b>المدينة:</b> ${driver.city||'—'}<br>
+      🚗 <b>الفئة:</b> ${catNames[driver.carCategory]||'اقتصادية'}<br>
+      ⭐ <b>التقييم:</b> ${driver.rating||'—'} (${driver.trips||0} رحلة)<br>
+      📊 <b>الحالة:</b> ${status}<br>
+      ${driver.approved ? '✅ <b>معتمد</b><br>' : ''}
+    </div>
+    <button class="btn" style="width:100%;margin-top:16px" onclick="document.getElementById('driverInfoModal').style.display='none'">إغلاق</button>
+  </div>`;
+  modal.style.display = 'flex';
 }
 async function loadChatMsgs(){
   if(!currentChatId) return;
