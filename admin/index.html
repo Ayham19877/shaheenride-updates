@@ -138,6 +138,11 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div id="rejectedList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadRejected()">🔄 تحديث</button>
 </div>
+<div class="card">
+<h2>✅ الرحلات المكتملة</h2>
+<div id="completedList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadCompleted()">🔄 تحديث</button>
+</div>
 </div>
 </div>
 
@@ -149,7 +154,7 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='monitor'){ loadMonitor(); loadRides(); loadRejected(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='monitor'){ loadMonitor(); loadRides(); loadRejected(); loadCompleted(); } }
 
 const CATS = [
   {id:'economy', ar:'🚗 اقتصادية'},
@@ -348,6 +353,45 @@ async function loadRides(){
         </div>
       </div>`;
     });
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+
+async function loadCompleted(){
+  const box = document.getElementById('completedList');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/rides.json?orderBy="createdAt"&limitToLast=30');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مكتملة</p>'; return; }
+    const dr = await fetch(FB+'/drivers.json');
+    const drivers = await dr.json() || {};
+    box.innerHTML='';
+    let count = 0;
+    let totalFare = 0;
+    Object.keys(d).reverse().forEach(id=>{
+      const v = d[id];
+      if(!v || typeof v !== 'object' || v.status!=='completed') return;
+      count++;
+      totalFare += (v.fare||0);
+      const drvName = (drivers[v.driverId] && drivers[v.driverId].name) || v.driverId || '?';
+      const dt = v.createdAt ? new Date(v.createdAt) : null;
+      const dateStr = dt ? dt.toLocaleDateString('ar') : '';
+      const timeStr = dt ? dt.toLocaleTimeString('ar') : '';
+      const stars = v.driverStars ? '⭐'.repeat(v.driverStars) : '—';
+      box.innerHTML += `<div class="driver-card">
+        <h3>✅ رحلة مكتملة <span class="badge approved">${v.fare||0} ل.س</span></h3>
+        <div class="info">
+        🚕 <b>السائق:</b> ${drvName}<br>
+        👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
+        📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
+        🏷️ ${v.category||''} | 📍 ${v.city||''} | ⭐ <b>التقييم:</b> ${stars}<br>
+        ${v.pickup ? `📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
+        ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
+        </div>
+      </div>`;
+    });
+    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مكتملة</p>';
+    else box.innerHTML = `<p style="text-align:center;color:#D4AF37">📊 ${count} رحلة | 💰 ${totalFare.toLocaleString('ar')} ل.س</p>` + box.innerHTML;
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 
