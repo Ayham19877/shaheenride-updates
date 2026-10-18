@@ -222,6 +222,12 @@ async function loadApps(){
         🚗 <b>السيارة:</b> ${v.carType||''} ${v.carModel||''} ${v.carYear||''} ${v.carColor||''}<br>
         🔢 <b>اللوحة:</b> ${v.plate||'—'} | 📍 <b>المدينة:</b> ${v.city||'—'}<br>
         📅 <b>التقديم:</b> ${dateStr}<br>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
+          ${v.photo?`<a href="${v.photo}" target="_blank"><img src="${v.photo}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #D4AF37" title="صورة السائق"></a>`:''}
+          ${v.license?`<a href="${v.license}" target="_blank"><img src="${v.license}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #D4AF37" title="رخصة القيادة"></a>`:''}
+          ${v.idcard?`<a href="${v.idcard}" target="_blank"><img src="${v.idcard}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #D4AF37" title="الهوية"></a>`:''}
+          ${v.carphoto?`<a href="${v.carphoto}" target="_blank"><img src="${v.carphoto}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #D4AF37" title="صورة السيارة"></a>`:''}
+        </div>
         <div style="margin-top:10px;text-align:center">
         <button class="btn small" style="background:#2a2" onclick="approveApp('${id}','${v.driverId||''}')">✅ قبول</button>
         <button class="btn small" style="background:#a33;color:#fff" onclick="rejectApp('${id}')">❌ رفض</button>
@@ -372,6 +378,10 @@ function renderPromos(){
     box.innerHTML += `<div class="promo-item">
       <input value="${p.title||''}" placeholder="العنوان" onchange="promos[${i}].title=this.value">
       <textarea placeholder="الوصف" onchange="promos[${i}].desc=this.value">${p.desc||''}</textarea>
+      <div style="display:flex;gap:8px">
+        <input type="number" value="${p.trips||''}" placeholder="عدد الرحلات المطلوبة" style="flex:1" onchange="promos[${i}].trips=parseInt(this.value)||0">
+        <input type="number" value="${p.reward||''}" placeholder="المكافأة (ل.س)" style="flex:1" onchange="promos[${i}].reward=parseInt(this.value)||0">
+      </div>
       <input value="${p.image||''}" placeholder="رابط الصورة (اختياري)" dir="ltr" onchange="promos[${i}].image=this.value">
       <button class="btn small danger" onclick="promos.splice(${i},1);renderPromos()">🗑 حذف</button>
     </div>`;
@@ -461,6 +471,29 @@ async function setCarCategory(driverId){
   }catch(e){ alert('خطأ: '+e.message); }
 }
 
+async function editDriver(driverId, v){
+  const name = prompt('اسم السائق:', v.name||'');
+  if(name===null) return;
+  const phone = prompt('رقم الهاتف:', v.phone||'');
+  if(phone===null) return;
+  const car = prompt('السيارة (موديل):', v.carModel||v.car||'');
+  if(car===null) return;
+  const color = prompt('لون السيارة:', v.color||v.carColor||'');
+  if(color===null) return;
+  const plate = prompt('رقم اللوحة:', v.plate||'');
+  if(plate===null) return;
+  const city = prompt('المدينة:', v.city||'');
+  if(city===null) return;
+  try{
+    const updates = {name:name, phone:phone, carModel:car, color:color, plate:plate, city:city};
+    for(const k in updates){
+      await fetch(FB+'/drivers/'+driverId+'/'+k+'.json', {method:'PUT', body: JSON.stringify(updates[k])});
+    }
+    alert('تم تحديث بيانات السائق ✅');
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+
 async function deleteDriver(driverId, driverName){
   if(!confirm(`⚠️ حذف نهائي!\n\nهل أنت متأكد من حذف السائق "${driverName}" نهائياً من النظام؟\nلا يمكن التراجع!`)) return;
   if(!confirm(`تأكيد أخير: حذف ${driverName} نهائياً؟`)) return;
@@ -507,9 +540,10 @@ async function loadMonitor(){
       const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
       const curCat = v.carCategory || 'economy';
       const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
+      const editBtn = `<button class="btn small" onclick='editDriver(${JSON.stringify(id)}, ${JSON.stringify(v)})'>✏️ تعديل</button>`;
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${catBtn} ${suspBtn} ${delBtn}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${catBtn} ${editBtn} ${suspBtn} ${delBtn}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
