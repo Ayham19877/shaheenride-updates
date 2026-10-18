@@ -89,16 +89,17 @@ header p{color:#888;font-size:14px;margin-top:5px}
 </div>
 
 <div class="tabs">
-<button class="tab active" onclick="showTab('fares',this)">💰 الأسعار</button>
+<button class="tab active" onclick="showTab('drivers',this)">🚕 السائقين</button>
+<button class="tab" onclick="showTab('rides',this)">🧾 الرحلات</button>
+<button class="tab" onclick="showTab('fares',this)">💰 الأسعار</button>
 <button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
-<button class="tab" onclick="showTab('monitor',this)">🗺️ السائقون النشطون</button>
 </div>
 
 <div class="content">
 <div class="status" id="status"></div>
 
 <!-- Fares Panel -->
-<div class="panel active" id="panel-fares">
+<div class="panel" id="panel-fares">
 <div class="card">
 <h2>💰 أسعار الرحلات (ليرة سورية)</h2>
 <div id="faresList"></div>
@@ -116,10 +117,10 @@ header p{color:#888;font-size:14px;margin-top:5px}
 </div>
 </div>
 
-<!-- Monitor Panel -->
-<div class="panel" id="panel-monitor">
+<!-- Drivers Panel -->
+<div class="panel active" id="panel-drivers">
 <div class="card">
-<h2>🗺️ مراقبة السائقين</h2>
+<h2>🚕 السائقين</h2>
 <div style="text-align:center;margin-bottom:12px">
 <button class="btn small" id="fltAll" onclick="setDriverFilter('all')">الكل</button>
 <button class="btn small" id="fltOn" onclick="setDriverFilter('online')">🟢 متصل</button>
@@ -128,20 +129,29 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div id="monitorList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadMonitor()">🔄 تحديث</button>
 </div>
+</div>
+
+<!-- Rides Panel -->
+<div class="panel" id="panel-rides">
 <div class="card">
 <h2>🚕 الرحلات النشطة</h2>
 <div id="ridesList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadRides()">🔄 تحديث</button>
 </div>
 <div class="card">
-<h2>❌ الرحلات المرفوضة</h2>
-<div id="rejectedList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
-<button class="btn small" onclick="loadRejected()">🔄 تحديث</button>
-</div>
-<div class="card">
 <h2>✅ الرحلات المكتملة</h2>
 <div id="completedList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadCompleted()">🔄 تحديث</button>
+</div>
+<div class="card">
+<h2>🚫 الرحلات الملغاة</h2>
+<div id="cancelledList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadCancelled()">🔄 تحديث</button>
+</div>
+<div class="card">
+<h2>❌ الرحلات المرفوضة</h2>
+<div id="rejectedList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadRejected()">🔄 تحديث</button>
 </div>
 </div>
 </div>
@@ -154,7 +164,7 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='monitor'){ loadMonitor(); loadRides(); loadRejected(); loadCompleted(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } }
 
 const CATS = [
   {id:'economy', ar:'🚗 اقتصادية'},
@@ -276,6 +286,7 @@ async function setDriverStatus(id, status){
 // Init
 loadFares();
 loadPromos();
+loadMonitor();
 
 let driverFilter = 'all';
 function setDriverFilter(f){
@@ -283,6 +294,15 @@ function setDriverFilter(f){
   ['fltAll','fltOn','fltOff'].forEach(id=>document.getElementById(id).style.opacity='0.5');
   document.getElementById(f==='all'?'fltAll':f==='online'?'fltOn':'fltOff').style.opacity='1';
   loadMonitor();
+}
+
+async function setSuspended(driverId, suspend){
+  try{
+    await fetch(FB+'/drivers/'+driverId+'/suspended.json', {
+      method:'PUT', body: JSON.stringify(suspend)
+    });
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
 }
 
 async function loadMonitor(){
@@ -304,9 +324,13 @@ async function loadMonitor(){
       if(driverFilter==='offline' && isOnline) return;
       const statusBadge = isOnline ? '<span class="badge approved">🟢 متصل</span>' : '<span class="badge rejected">⚪ غير متصل</span>';
       const approvedBadge = v.approved ? ' ✅' : ' ⏳';
+      const suspBadge = v.suspended ? ' <span class="badge rejected">🚫 موقوف</span>' : '';
+      const suspBtn = v.suspended
+        ? `<button class="btn small" onclick="setSuspended('${id}',false)">▶️ تفعيل</button>`
+        : `<button class="btn small" onclick="setSuspended('${id}',true)">🚫 إيقاف</button>`;
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge} ${suspBtn}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
@@ -320,7 +344,7 @@ async function loadMonitor(){
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 // Auto-refresh monitor every 30s when visible
-setInterval(()=>{ if(document.getElementById('panel-monitor').classList.contains('active')){ loadMonitor(); loadRides(); } }, 30000);
+setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
 
 async function loadRides(){
   const box = document.getElementById('ridesList');
@@ -353,6 +377,42 @@ async function loadRides(){
         </div>
       </div>`;
     });
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+
+async function loadCancelled(){
+  const box = document.getElementById('cancelledList');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/rides.json');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات ملغاة</p>'; return; }
+    const dr = await fetch(FB+'/drivers.json');
+    const drivers = await dr.json() || {};
+    const sorted = Object.keys(d).filter(id=>{
+      const v = d[id];
+      return v && typeof v === 'object' && v.status==='cancelled';
+    }).sort((a,b)=>((d[b].createdAt||0)-(d[a].createdAt||0))).slice(0,30);
+    box.innerHTML='';
+    let count = 0;
+    sorted.forEach(id=>{
+      const v = d[id];
+      count++;
+      const drvName = (drivers[v.driverId] && drivers[v.driverId].name) || v.driverId || '—';
+      const dt = v.createdAt ? new Date(v.createdAt) : null;
+      const dateStr = dt ? dt.toLocaleDateString('ar') : '';
+      const timeStr = dt ? dt.toLocaleTimeString('ar') : '';
+      box.innerHTML += `<div class="driver-card">
+        <h3>🚫 رحلة ملغاة <span class="badge rejected">${v.fare||0} ل.س</span></h3>
+        <div class="info">
+        🚕 <b>السائق:</b> ${drvName}<br>
+        👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
+        📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
+        🏷️ ${v.category||''} | 📍 ${v.city||''}
+        </div>
+      </div>`;
+    });
+    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات ملغاة</p>';
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 
