@@ -344,6 +344,34 @@ async function sendSupportMsg(){
   }catch(e){ alert('خطأ: '+e.message); }
 }
 
+// فتح دردشة سائق معين من قائمة السائقين
+function openDriverChat(driverId, driverName){
+  // الانتقال لتبويب الدعم وفتح دردشة السائق
+  showTab('support', document.querySelectorAll('.tab')[6]);
+  // معرف الدردشة للسائق
+  const chatId = 'driver_' + driverId.replace(/[^0-9a-zA-Z]/g, '');
+  // البحث عن المحادثة الموجودة أو إنشاؤها
+  setTimeout(async ()=>{
+    try{
+      const r = await fetch(FB+'/support_chats.json');
+      const d = await r.json();
+      let found = null;
+      if(d){
+        // البحث بالـdriverId أو برقم الهاتف
+        for(const cid of Object.keys(d)){
+          if(cid === chatId || cid.includes(driverId.replace(/[^0-9]/g,''))){
+            found = cid; break;
+          }
+        }
+      }
+      openChat(found || chatId);
+      if(!found){
+        document.getElementById('chatTitle').textContent = '💬 ' + driverName + ' (محادثة جديدة)';
+      }
+    }catch(e){ openChat(chatId); }
+  }, 300);
+}
+
 async function loadApps(){
   const box = document.getElementById('appsList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
@@ -727,9 +755,10 @@ async function loadMonitor(){
       const curCat = v.carCategory || 'economy';
       const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
       const editBtn = `<button class="btn small" onclick='editDriver(${JSON.stringify(id)}, ${JSON.stringify(v)})'>✏️ تعديل</button>`;
+      const chatBtn = `<button class="btn small" onclick="openDriverChat('${id}','${(v.name||id).replace(/'/g,'')}')">💬 دردشة</button>`;
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${catBtn} ${editBtn} ${suspBtn} ${delBtn}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${catBtn} ${editBtn} ${chatBtn} ${suspBtn} ${delBtn}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
