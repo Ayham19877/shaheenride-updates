@@ -360,17 +360,21 @@ async function loadCompleted(){
   const box = document.getElementById('completedList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fetch(FB+'/rides.json?orderBy="createdAt"&limitToLast=30');
+    const r = await fetch(FB+'/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مكتملة</p>'; return; }
     const dr = await fetch(FB+'/drivers.json');
     const drivers = await dr.json() || {};
+    // ترتيب حسب createdAt تنازلياً
+    const sorted = Object.keys(d).filter(id=>{
+      const v = d[id];
+      return v && typeof v === 'object' && v.status==='completed';
+    }).sort((a,b)=>((d[b].createdAt||0)-(d[a].createdAt||0))).slice(0,30);
     box.innerHTML='';
     let count = 0;
     let totalFare = 0;
-    Object.keys(d).reverse().forEach(id=>{
+    sorted.forEach(id=>{
       const v = d[id];
-      if(!v || typeof v !== 'object' || v.status!=='completed') return;
       count++;
       totalFare += (v.fare||0);
       const drvName = (drivers[v.driverId] && drivers[v.driverId].name) || v.driverId || '?';
