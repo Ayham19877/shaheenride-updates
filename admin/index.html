@@ -193,7 +193,7 @@ document.getElementById('fbUrl').value = FB;
 document.getElementById('adminEmail').value = localStorage.getItem('sr_email') || '';
 
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
-function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
+function saveEmail(){ const em = document.getElementById('adminEmail').value.trim(); localStorage.setItem('sr_email', em); fetch(FB+'/config/adminEmail.json', {method:'PUT', body: JSON.stringify(em)}); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
 function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } }
 
