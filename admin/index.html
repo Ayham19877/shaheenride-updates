@@ -285,10 +285,17 @@ async function loadSupportChats(){
       if(!chat || !chat.messages) return;
       const msgs = Object.values(chat.messages);
       if(!msgs.length) return;
-      const last = msgs[msgs.length-1];
-      const unread = msgs.filter(m=>m.from==='driver'||m.from==='rider').length;
+      const sorted = msgs.sort((a,b)=>(a.ts||0)-(b.ts||0));
+      const last = sorted[sorted.length-1];
+      // اسم المرسل من أول رسالة فيها اسم
+      let senderName = '';
+      for(const m of sorted){ if(m.name){ senderName = m.name; break; } }
+      const isDriver = chatId.startsWith('driver_');
+      const icon = isDriver ? '🚕' : '👤';
+      const idLabel = chatId.replace('driver_','').replace('rider_','');
       box.innerHTML += `<div class="driver-card" style="cursor:pointer;padding:10px" onclick="openChat('${chatId}')">
-        <b>${chatId.replace('driver_','🚕 ').replace('rider_','👤 ')}</b><br>
+        <b>${icon} ${senderName || idLabel}</b>
+        ${senderName ? `<br><span style="color:#888;font-size:12px">${idLabel}</span>` : ''}<br>
         <span style="color:#888;font-size:13px">${(last.text||'').substring(0,40)}</span>
       </div>`;
     });
@@ -313,7 +320,9 @@ async function loadChatMsgs(){
     const msgs = Object.values(d).sort((a,b)=>(a.ts||0)-(b.ts||0));
     msgs.forEach(m=>{
       const mine = m.from==='support';
+      const senderLabel = mine ? '🛎️ الدعم' : (m.name ? '👤 '+m.name : '');
       box.innerHTML += `<div style="text-align:${mine?'left':'right'};margin:6px 0">
+        ${senderLabel && !mine ? `<div style="font-size:11px;color:#888">${senderLabel}</div>` : ''}
         <span style="display:inline-block;background:${mine?'#1a3a1a':'#2a2a2a'};color:#fff;padding:8px 12px;border-radius:12px;max-width:80%">${m.text||''}</span>
       </div>`;
     });
