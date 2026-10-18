@@ -95,6 +95,8 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <button class="tab" onclick="showTab('riders',this)">👥 الزبائن</button>
 <button class="tab" onclick="showTab('fares',this)">💰 الأسعار</button>
 <button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
+<button class="tab" onclick="showTab('ads',this)">📢 إعلانات</button>
+<button class="tab" onclick="showTab('support',this)">🆘 الدعم</button>
 </div>
 
 <div class="content">
@@ -121,6 +123,38 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <h2>📊 متابعة السائقين بالعروض</h2>
 <div id="promoProgress"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadPromoProgress()">🔄 تحديث</button>
+</div>
+</div>
+
+<!-- Ads Panel -->
+<div class="panel" id="panel-ads">
+<div class="card">
+<h2>📢 الإعلانات</h2>
+<div id="adsList"></div>
+<button class="btn small" onclick="addAd()">➕ إضافة إعلان</button>
+<button class="btn" onclick="saveAds()">💾 حفظ الإعلانات</button>
+</div>
+</div>
+
+<!-- Support Panel -->
+<div class="panel" id="panel-support">
+<div class="card">
+<h2>🆘 دردشة الدعم</h2>
+<div style="display:flex;gap:8px">
+<div style="flex:1">
+<h3 style="color:#D4AF37">المحادثات</h3>
+<div id="chatList"><p style="color:#888">جاري التحميل...</p></div>
+</div>
+<div style="flex:2">
+<h3 style="color:#D4AF37" id="chatTitle">اختر محادثة</h3>
+<div id="chatMsgs" style="max-height:400px;overflow-y:auto;background:#0a0a0a;border-radius:8px;padding:10px;margin-bottom:10px"></div>
+<div style="display:flex;gap:6px">
+<input type="text" id="chatInput" placeholder="اكتب ردك..." style="flex:1;padding:10px;border-radius:8px;border:1px solid #D4AF37;background:#222;color:#fff">
+<button class="btn small" onclick="sendSupportMsg()">إرسال</button>
+</div>
+</div>
+</div>
+<button class="btn small" onclick="loadSupportChats()">🔄 تحديث</button>
 </div>
 </div>
 
@@ -200,7 +234,106 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ const em = document.getElementById('adminEmail').value.trim(); localStorage.setItem('sr_email', em); fetch(FB+'/config/adminEmail.json', {method:'PUT', body: JSON.stringify(em)}); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } }
+
+// ===== الإعلانات =====
+let ads = [];
+async function loadAds(){
+  const box = document.getElementById('adsList');
+  box.innerHTML = '<p style="color:#888">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/config/ads.json');
+    const d = await r.json();
+    ads = Array.isArray(d) ? d : [];
+    renderAds();
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+function renderAds(){
+  const box = document.getElementById('adsList'); box.innerHTML='';
+  ads.forEach((a,i)=>{
+    box.innerHTML += `<div class="promo-item">
+      <input value="${(a.title||'').replace(/"/g,'&quot;')}" placeholder="عنوان الإعلان" onchange="ads[${i}].title=this.value">
+      <textarea placeholder="وصف الإعلان" onchange="ads[${i}].desc=this.value">${a.desc||''}</textarea>
+      <input value="${a.image||''}" placeholder="رابط الصورة" dir="ltr" onchange="ads[${i}].image=this.value">
+      <input value="${a.link||''}" placeholder="رابط (اختياري)" dir="ltr" onchange="ads[${i}].link=this.value">
+      <button class="btn small danger" onclick="ads.splice(${i},1);renderAds()">🗑 حذف</button>
+    </div>`;
+  });
+  if(!ads.length) box.innerHTML='<p style="color:#888;text-align:center">لا توجد إعلانات — أضف واحداً</p>';
+}
+function addAd(){ ads.push({title:'',desc:'',image:'',link:''}); renderAds(); }
+async function saveAds(){
+  try{
+    const r = await fetch(FB+'/config/ads.json',{method:'PUT',body:JSON.stringify(ads),headers:{'Content-Type':'application/json'}});
+    if(r.ok) showStatus('تم حفظ الإعلانات ✅','ok'); else showStatus('فشل الحفظ','err');
+  }catch(e){ showStatus('خطأ: '+e.message,'err'); }
+}
+
+// ===== دردشة الدعم =====
+let currentChatId = null;
+let chatPollTimer = null;
+async function loadSupportChats(){
+  const box = document.getElementById('chatList');
+  box.innerHTML = '<p style="color:#888">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/support_chats.json');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888">لا توجد محادثات</p>'; return; }
+    box.innerHTML='';
+    Object.keys(d).forEach(chatId=>{
+      const chat = d[chatId];
+      if(!chat || !chat.messages) return;
+      const msgs = Object.values(chat.messages);
+      if(!msgs.length) return;
+      const last = msgs[msgs.length-1];
+      const unread = msgs.filter(m=>m.from==='driver'||m.from==='rider').length;
+      box.innerHTML += `<div class="driver-card" style="cursor:pointer;padding:10px" onclick="openChat('${chatId}')">
+        <b>${chatId.replace('driver_','🚕 ').replace('rider_','👤 ')}</b><br>
+        <span style="color:#888;font-size:13px">${(last.text||'').substring(0,40)}</span>
+      </div>`;
+    });
+    if(!box.innerHTML) box.innerHTML='<p style="color:#888">لا توجد محادثات</p>';
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+async function openChat(chatId){
+  currentChatId = chatId;
+  document.getElementById('chatTitle').textContent = '💬 ' + chatId;
+  loadChatMsgs();
+  if(chatPollTimer) clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(loadChatMsgs, 5000);
+}
+async function loadChatMsgs(){
+  if(!currentChatId) return;
+  try{
+    const r = await fetch(FB+'/support_chats/'+currentChatId+'/messages.json');
+    const d = await r.json();
+    const box = document.getElementById('chatMsgs');
+    box.innerHTML='';
+    if(!d) return;
+    const msgs = Object.values(d).sort((a,b)=>(a.ts||0)-(b.ts||0));
+    msgs.forEach(m=>{
+      const mine = m.from==='support';
+      box.innerHTML += `<div style="text-align:${mine?'left':'right'};margin:6px 0">
+        <span style="display:inline-block;background:${mine?'#1a3a1a':'#2a2a2a'};color:#fff;padding:8px 12px;border-radius:12px;max-width:80%">${m.text||''}</span>
+      </div>`;
+    });
+    box.scrollTop = box.scrollHeight;
+  }catch(e){}
+}
+async function sendSupportMsg(){
+  const inp = document.getElementById('chatInput');
+  const txt = inp.value.trim();
+  if(!txt || !currentChatId) return;
+  inp.value='';
+  try{
+    await fetch(FB+'/support_chats/'+currentChatId+'/messages.json', {
+      method:'POST',
+      body: JSON.stringify({from:'support', text:txt, ts:Date.now()}),
+      headers:{'Content-Type':'application/json'}
+    });
+    loadChatMsgs();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
 
 async function loadApps(){
   const box = document.getElementById('appsList');
