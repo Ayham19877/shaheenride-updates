@@ -117,6 +117,11 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <button class="btn small" onclick="addPromo()">➕ إضافة عرض</button>
 <button class="btn" onclick="savePromos()">💾 حفظ العروض</button>
 </div>
+<div class="card">
+<h2>📊 متابعة السائقين بالعروض</h2>
+<div id="promoProgress"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadPromoProgress()">🔄 تحديث</button>
+</div>
 </div>
 
 <!-- Drivers Panel -->
@@ -393,6 +398,45 @@ async function savePromos(){
     const r = await fetch(FB+'/config/promotions.json',{method:'PUT',body:JSON.stringify(promos),headers:{'Content-Type':'application/json'}});
     if(r.ok) showStatus('تم حفظ العروض ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
+}
+
+async function loadPromoProgress(){
+  const box = document.getElementById('promoProgress');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/promo_progress.json');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون مفعّلون لأي عرض</p>'; return; }
+    box.innerHTML='';
+    let winners = 0, active = 0;
+    Object.keys(d).forEach(promoId=>{
+      const drivers = d[promoId];
+      if(!drivers || typeof drivers !== 'object') return;
+      let promoHtml = '';
+      Object.keys(drivers).forEach(driverId=>{
+        const v = drivers[driverId];
+        if(!v || typeof v !== 'object') return;
+        const pct = v.need>0 ? Math.min(100, Math.round(v.done/v.need*100)) : 0;
+        const status = v.won ? '🏆 <span style="color:#D4AF37">كسب العرض!</span>' : `📊 ${v.done||0}/${v.need||'?'} رحلة`;
+        if(v.won) winners++; else active++;
+        promoHtml += `<div style="padding:8px;border-bottom:1px solid #333">
+          🚕 <b>${v.driverName||driverId}</b> — ${status}
+          <div style="background:#333;border-radius:6px;height:8px;margin-top:4px">
+            <div style="background:${v.won?'#D4AF37':'#2a2'};height:8px;border-radius:6px;width:${pct}%"></div>
+          </div>
+        </div>`;
+      });
+      if(promoHtml){
+        const firstDriver = drivers[Object.keys(drivers)[0]];
+        box.innerHTML += `<div class="driver-card">
+          <h3>🎁 ${firstDriver.promoTitle||decodeURIComponent(promoId)}</h3>
+          ${promoHtml}
+        </div>`;
+      }
+    });
+    if(!box.innerHTML) box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون مفعّلون</p>';
+    else box.innerHTML = `<p style="text-align:center">🎯 <b>${active}</b> مفعّل | 🏆 <b>${winners}</b> كسب العرض</p>` + box.innerHTML;
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 
 async function loadDrivers(){
