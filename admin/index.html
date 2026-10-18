@@ -66,8 +66,6 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <input type="password" id="loginPass" placeholder="كلمة المرور">
 <button class="btn" onclick="doLogin()">دخول</button>
 <p id="loginErr" style="color:#f77;margin-top:10px;display:none">بيانات خاطئة!</p>
-</div>
-</div>
 <div id="appContent">
 <header>
 <h1>🚕 لوحة تحكم تكسي شاهين</h1>
@@ -91,6 +89,7 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div class="tabs">
 <button class="tab active" onclick="showTab('drivers',this)">🚕 السائقين</button>
 <button class="tab" onclick="showTab('rides',this)">🧾 الرحلات</button>
+<button class="tab" onclick="showTab('riders',this)">👥 الزبائن</button>
 <button class="tab" onclick="showTab('fares',this)">💰 الأسعار</button>
 <button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
 </div>
@@ -134,6 +133,13 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <!-- Rides Panel -->
 <div class="panel" id="panel-rides">
 <div class="card">
+<h2>🧾 الرحلات</h2>
+<div style="text-align:center;margin-bottom:12px">
+<input type="text" id="rideSearch" placeholder="🔍 بحث بكود الرحلة أو اسم الزبون..." oninput="filterRides()"
+ style="width:90%;padding:10px;border-radius:8px;border:1px solid #D4AF37;background:#222;color:#fff;font-size:16px">
+</div>
+</div>
+<div class="card">
 <h2>🚕 الرحلات النشطة</h2>
 <div id="ridesList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
 <button class="btn small" onclick="loadRides()">🔄 تحديث</button>
@@ -154,6 +160,19 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <button class="btn small" onclick="loadRejected()">🔄 تحديث</button>
 </div>
 </div>
+
+<!-- Riders Panel -->
+<div class="panel" id="panel-riders">
+<div class="card">
+<h2>👥 الزبائن</h2>
+<div style="text-align:center;margin-bottom:12px">
+<input type="text" id="riderSearch" placeholder="🔍 بحث بالاسم أو رقم الهاتف..." oninput="loadRiders()"
+ style="width:90%;padding:10px;border-radius:8px;border:1px solid #D4AF37;background:#222;color:#fff;font-size:16px">
+</div>
+<div id="ridersList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
+<button class="btn small" onclick="loadRiders()">🔄 تحديث</button>
+</div>
+</div>
 </div>
 
 <script>
@@ -164,7 +183,67 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ localStorage.setItem('sr_email', document.getElementById('adminEmail').value.trim()); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } }
+
+// فلترة الرحلات حسب البحث
+let allRidesCache = {};
+function filterRides(){
+  const q = (document.getElementById('rideSearch').value||'').trim().toLowerCase();
+  document.querySelectorAll('#panel-rides .driver-card').forEach(card=>{
+    const txt = card.textContent.toLowerCase();
+    card.style.display = (!q || txt.includes(q)) ? '' : 'none';
+  });
+}
+
+async function loadRiders(){
+  const box = document.getElementById('ridersList');
+  const q = (document.getElementById('riderSearch').value||'').trim().toLowerCase();
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    const r = await fetch(FB+'/rides.json');
+    const d = await r.json();
+    if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد زبائن</p>'; return; }
+    // تجميع الزبائن من الرحلات
+    const riders = {};
+    Object.keys(d).forEach(id=>{
+      const v = d[id];
+      if(!v || typeof v !== 'object') return;
+      const phone = v.riderPhone || '';
+      const name = v.riderName || '';
+      if(!phone && !name) return;
+      const key = phone || name;
+      if(!riders[key]) riders[key] = {name:name, phone:phone, rides:[], total:0, completed:0};
+      riders[key].rides.push({id:id, v:v});
+      riders[key].total += (v.fare||0);
+      if(v.status==='completed') riders[key].completed++;
+      if(name && !riders[key].name) riders[key].name = name;
+    });
+    box.innerHTML='';
+    let count = 0;
+    Object.keys(riders).sort().forEach(key=>{
+      const rd = riders[key];
+      if(q && !(rd.name||'').toLowerCase().includes(q) && !(rd.phone||'').includes(q)) return;
+      count++;
+      // آخر 5 رحلات
+      const lastRides = rd.rides.sort((a,b)=>((b.v.createdAt||0)-(a.v.createdAt||0))).slice(0,5);
+      let ridesHtml = '';
+      lastRides.forEach(rr=>{
+        const v = rr.v;
+        const st = v.status==='completed'?'✅':v.status==='cancelled'?'🚫':v.status==='searching'?'🔍':'❌';
+        ridesHtml += `${st} ${v.rideCode||''} ${v.fare||0} ل.س<br>`;
+      });
+      box.innerHTML += `<div class="driver-card">
+        <h3>👤 ${rd.name||'زبون'} <span class="badge approved">${rd.rides.length} رحلة</span></h3>
+        <div class="info">
+        📱 <b>الهاتف:</b> ${rd.phone||'—'}<br>
+        ✅ <b>مكتملة:</b> ${rd.completed} | 💰 <b>الإجمالي:</b> ${rd.total.toLocaleString('ar')} ل.س<br>
+        <b>آخر الرحلات:</b><br>${ridesHtml}
+        </div>
+      </div>`;
+    });
+    if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد نتائج</p>';
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
 
 const CATS = [
   {id:'economy', ar:'🚗 اقتصادية'},
