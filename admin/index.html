@@ -306,8 +306,36 @@ async function openChat(chatId){
   currentChatId = chatId;
   document.getElementById('chatTitle').textContent = '💬 ' + chatId;
   loadChatMsgs();
+  // جلب معلومات السائق/الزبون الكاملة
+  loadChatUserInfo(chatId);
   if(chatPollTimer) clearInterval(chatPollTimer);
   chatPollTimer = setInterval(loadChatMsgs, 5000);
+}
+
+async function loadChatUserInfo(chatId){
+  try{
+    const phone = chatId.replace('driver_','').replace('rider_','');
+    const isDriver = chatId.startsWith('driver_');
+    if(!isDriver) return;
+    // البحث عن السائق برقم الهاتف
+    const r = await fetch(FB+'/drivers.json');
+    const d = await r.json();
+    if(!d) return;
+    let driver = null;
+    for(const id of Object.keys(d)){
+      const v = d[id];
+      if(v && v.phone && v.phone.replace(/[^0-9]/g,'').endsWith(phone.replace(/[^0-9]/g,'').slice(-9))){
+        driver = v; break;
+      }
+    }
+    if(driver){
+      const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
+      document.getElementById('chatTitle').innerHTML =
+        `💬 ${driver.name||''} <span style="font-size:13px;color:#888">` +
+        `📱 ${driver.phone||''} | 🚗 ${driver.car||''} ${driver.carModel||''} ${driver.color||''} | ` +
+        `🔢 ${driver.plate||''} | 📍 ${driver.city||''} | 🚗 ${catNames[driver.carCategory]||'اقتصادية'}</span>`;
+    }
+  }catch(e){}
 }
 async function loadChatMsgs(){
   if(!currentChatId) return;
