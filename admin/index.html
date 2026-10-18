@@ -235,11 +235,17 @@ async function loadApps(){
 }
 
 async function approveApp(appId, driverId){
-  if(!confirm('قبول هذا السائق؟')) return;
+  const cat = prompt('فئة السيارة:\n1 = اقتصادية\n2 = عائلية\n3 = حديثة\n4 = VIP\n\nأدخل الرقم:', '1');
+  if(cat===null) return;
+  const cats = {'1':'economy','2':'family','3':'modern','4':'vip'};
+  const category = cats[cat.trim()] || 'economy';
   try{
     await fetch(FB+'/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"approved"'});
-    if(driverId) await fetch(FB+'/drivers/'+driverId+'/approved.json', {method:'PUT', body:'true'});
-    alert('تم قبول السائق ✅');
+    if(driverId){
+      await fetch(FB+'/drivers/'+driverId+'/approved.json', {method:'PUT', body:'true'});
+      await fetch(FB+'/drivers/'+driverId+'/carCategory.json', {method:'PUT', body:JSON.stringify(category)});
+    }
+    alert('تم قبول السائق ✅ (فئة: '+category+')');
     loadApps(); loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
 }
@@ -443,6 +449,18 @@ function setDriverFilter(f){
   loadMonitor();
 }
 
+async function setCarCategory(driverId){
+  const cat = prompt('فئة السيارة:\n1 = اقتصادية\n2 = عائلية\n3 = حديثة\n4 = VIP\n\nأدخل الرقم:', '1');
+  if(cat===null) return;
+  const cats = {'1':'economy','2':'family','3':'modern','4':'vip'};
+  const category = cats[cat.trim()] || 'economy';
+  try{
+    await fetch(FB+'/drivers/'+driverId+'/carCategory.json', {method:'PUT', body: JSON.stringify(category)});
+    alert('تم تحديث الفئة ✅');
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+
 async function deleteDriver(driverId, driverName){
   if(!confirm(`⚠️ حذف نهائي!\n\nهل أنت متأكد من حذف السائق "${driverName}" نهائياً من النظام؟\nلا يمكن التراجع!`)) return;
   if(!confirm(`تأكيد أخير: حذف ${driverName} نهائياً؟`)) return;
@@ -486,9 +504,12 @@ async function loadMonitor(){
         ? `<button class="btn small" onclick="setSuspended('${id}',false)">▶️ تفعيل</button>`
         : `<button class="btn small" onclick="setSuspended('${id}',true)">🚫 إيقاف</button>`;
       const delBtn = `<button class="btn small" style="background:#a33;color:#fff" onclick="deleteDriver('${id}','${(v.name||id).replace(/'/g,'')}')">🗑️ حذف</button>`;
+      const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
+      const curCat = v.carCategory || 'economy';
+      const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
       count++;
       box.innerHTML += `<div class="driver-card">
-        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${suspBtn} ${delBtn}</h3>
+        <h3>🚕 ${v.name||id}${approvedBadge} ${statusBadge}${suspBadge}<br>${catBtn} ${suspBtn} ${delBtn}</h3>
         <div class="info">
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
