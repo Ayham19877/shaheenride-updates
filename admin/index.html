@@ -7,6 +7,12 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:#0a0a0a;color:#fff;min-height:100vh}
+#loginOverlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#0a0a0a;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:#161616;border:2px solid #D4AF37;border-radius:20px;padding:40px;max-width:400px;width:100%;text-align:center}
+.login-box h2{color:#D4AF37;margin-bottom:20px}
+.login-box input{width:100%;background:#0a0a0a;border:1px solid #444;color:#fff;padding:14px;border-radius:10px;margin:8px 0;font-size:16px;text-align:center}
+.login-box input:focus{border-color:#D4AF37;outline:none}
+#appContent{display:none}
 header{background:linear-gradient(135deg,#1a1a1a,#2a2a2a);padding:20px;text-align:center;border-bottom:3px solid #D4AF37}
 header h1{color:#D4AF37;font-size:24px}
 header p{color:#888;font-size:14px;margin-top:5px}
@@ -52,6 +58,17 @@ header p{color:#888;font-size:14px;margin-top:5px}
 </style>
 </head>
 <body>
+<div id="loginOverlay">
+<div class="login-box">
+<h2>🚕 لوحة تحكم تكسي شاهين</h2>
+<p style="color:#888;margin-bottom:20px">تسجيل الدخول</p>
+<input type="text" id="loginUser" placeholder="اسم المستخدم" autocomplete="off">
+<input type="password" id="loginPass" placeholder="كلمة المرور">
+<button class="btn" onclick="doLogin()">دخول</button>
+<p id="loginErr" style="color:#f77;margin-top:10px;display:none">بيانات خاطئة!</p>
+</div>
+</div>
+<div id="appContent">
 <header>
 <h1>🚕 لوحة تحكم تكسي شاهين</h1>
 <p>Shaheen Ride Admin Panel</p>
@@ -314,6 +331,28 @@ async function loadRides(){
     });
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
+
+// Login protection
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = 'shaheen2026';
+function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  if(u === ADMIN_USER && p === ADMIN_PASS){
+    sessionStorage.setItem('sr_auth','1');
+    document.getElementById('loginOverlay').style.display='none';
+    document.getElementById('appContent').style.display='block';
+  } else {
+    document.getElementById('loginErr').style.display='block';
+  }
+}
+document.getElementById('loginPass').addEventListener('keypress', e=>{ if(e.key==='Enter') doLogin(); });
+// Auto-login if already authenticated in this session
+if(sessionStorage.getItem('sr_auth')==='1'){
+  document.getElementById('loginOverlay').style.display='none';
+  document.getElementById('appContent').style.display='block';
+}
 </script>
+</div>
 </body>
 </html>
