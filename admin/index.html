@@ -1136,12 +1136,12 @@ async function loadRides(){
   const box = document.getElementById('ridesList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fetch(FB+'/rides.json?orderBy="createdAt"&limitToLast=20');
+    const r = await fetch(FB+'/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات</p>'; return; }
     box.innerHTML='';
     const statusAr = {searching:'🔍 يبحث عن سائق', accepted:'✅ مقبولة', arriving:'🚗 السائق قادم', ontrip:'🛣️ بالطريق', completed:'✅ مكتملة', cancelled:'❌ ملغية', error:'⚠️ خطأ'};
-    Object.keys(d).reverse().forEach(id=>{
+    Object.keys(d).sort((a,b)=> (d[b].createdAt||0) - (d[a].createdAt||0)).slice(0,20).forEach(id=>{
       const v = d[id];
       if(!v || typeof v !== 'object') return;
       const st = statusAr[v.status] || v.status || '?';
