@@ -1328,8 +1328,8 @@ async function loadCompleted(){
         👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         🏷️ ${v.category||''} | 📍 ${v.city||''} | ⭐ <b>التقييم:</b> ${stars}<br>
-        ${v.pickup ? `📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
-        ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
+        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
+        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
         </div>
       </div>`;
     });
