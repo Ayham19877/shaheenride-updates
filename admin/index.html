@@ -1035,6 +1035,11 @@ async function loadMonitor(){
         ? `<button class="btn small" style="background:#2a2;color:#fff" onclick="markCommissionPaid('${id}',${commOwed})">✅ تم الدفع</button>`
         : '';
       const adjBtn = `<button class="btn small" onclick="adjustCommission('${id}',${commOwed})">✏️ تعديل العمولة</button>`;
+      const drvRate = v.commissionRate !== undefined ? v.commissionRate : null;
+      const rateLbl = drvRate !== null
+        ? `<span class="badge approved">📊 عمولته: ${drvRate}%</span>`
+        : `<span class="badge">📊 عمولة عامة</span>`;
+      const rateBtn = `<button class="btn small" onclick="setDriverRate('${id}',${drvRate === null ? 'null' : drvRate})">📊 نسبة خاصة</button>`;
       const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
       const curCat = v.carCategory || 'economy';
       const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
@@ -1049,6 +1054,7 @@ async function loadMonitor(){
         📍 ${v.city||''} | ⭐ ${v.rating||5} (${v.trips||0} رحلة)<br>
         💰 إجمالي الأرباح: ${totalEarn.toLocaleString()} ل.س<br>
         ${commBadge} ${paidBtn} ${adjBtn}<br>
+        ${rateLbl} ${rateBtn}<br>
         📡 آخر تحديث: ${age < 60 ? 'منذ '+age+' ثانية' : 'منذ '+Math.round(age/60)+' دقيقة'}<br>
         ${v.lat ? `🗺️ <a href="https://www.google.com/maps?q=${v.lat},${v.lon}" target="_blank" style="color:#D4AF37">عرض على الخريطة</a>` : '📍 لا يوجد موقع'}
         </div>
@@ -1078,6 +1084,23 @@ async function adjustCommission(id, current){
   try{
     await fetch(FB+'/drivers/'+id+'.json', {method:'PATCH',
       body: JSON.stringify({commissionOwed: n})});
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+async function setDriverRate(id, current){
+  const v = prompt('نسبة العمولة الخاصة لهذا السائق (%)\nاتركها فارغة للعودة للنسبة العامة:', current === null ? '' : current);
+  if(v === null) return;
+  try{
+    let body;
+    if(v.trim() === ''){
+      // حذف النسبة الخاصة → عودة للعامة
+      await fetch(FB+'/drivers/'+id+'/commissionRate.json', {method:'DELETE'});
+    } else {
+      const n = parseFloat(v);
+      if(isNaN(n) || n < 0 || n > 100){ alert('نسبة غير صالحة'); return; }
+      body = JSON.stringify({commissionRate: n});
+      await fetch(FB+'/drivers/'+id+'.json', {method:'PATCH', body});
+    }
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
 }
