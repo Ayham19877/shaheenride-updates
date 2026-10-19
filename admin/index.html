@@ -1207,6 +1207,16 @@ async function loadRides(){
     const r = await fetch(FB+'/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات</p>'; return; }
+    // جلب أسماء السائقين
+    let drivers = {};
+    try{
+      const dr = await fetch(FB+'/drivers.json');
+      drivers = await dr.json() || {};
+    }catch(e){}
+    const drvName = (id) => {
+      if(!id) return 'لم يُعيَّن بعد';
+      return (drivers[id] && drivers[id].name) || id;
+    };
     box.innerHTML='';
     const statusAr = {searching:'🔍 يبحث عن سائق', accepted:'✅ مقبولة', arriving:'🚗 السائق قادم', ontrip:'🛣️ بالطريق', completed:'✅ مكتملة', cancelled:'❌ ملغية', error:'⚠️ خطأ'};
     Object.keys(d).sort((a,b)=> (d[b].createdAt||0) - (d[a].createdAt||0)).slice(0,20).forEach(id=>{
@@ -1216,7 +1226,13 @@ async function loadRides(){
       const badgeClass = v.status==='completed' ? 'approved' : (v.status==='cancelled'||v.status==='error') ? 'rejected' : 'pending';
       // تنبيه: مرفوضة أو لم تُقبل أبداً
       let warn = '';
-      if(v.rejectedBy) warn = '<br>⚠️ <b style="color:#f77">رفضها السائق: '+(v.rejectedBy||'')+'</b>';
+      if(v.rejectedBy){
+        // استخراج اسم السائق من "driverId (reason)"
+        const m = (v.rejectedBy||'').match(/^([^(]+)\s*\(([^)]+)\)/);
+        const rejId = m ? m[1].trim() : v.rejectedBy;
+        const rejReason = m ? m[2].trim() : '';
+        warn = '<br>⚠️ <b style="color:#f77">رفضها السائق: '+drvName(rejId)+(rejReason ? ' ('+rejReason+')' : '')+'</b>';
+      }
       else if(v.status==='searching' && v.createdAt && (Date.now()-v.createdAt > 5*60*1000))
         warn = '<br>⏰ <b style="color:#fa0">لم يقبلها أي سائق بعد (أكثر من 5 دقائق)</b>';
       box.innerHTML += `<div class="driver-card">
@@ -1224,7 +1240,7 @@ async function loadRides(){
         <div class="info">
         👤 ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
-        🚕 السائق: ${v.driverId||'لم يُعيَّن بعد'}${warn}<br>
+        🚕 السائق: ${drvName(v.driverId)}${warn}<br>
         🕐 ${v.createdAt ? new Date(v.createdAt).toLocaleString('ar') : ''}
         ${v.pickup ? `<br>📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
         ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
