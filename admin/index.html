@@ -126,6 +126,12 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <button class="btn" onclick="loadDailyReport()">📊 عرض التقرير</button>
 <div id="dailyReport" style="margin-top:16px"></div>
 </div>
+<div class="card">
+<h2>📅 التقرير الشهري</h2>
+<input type="month" id="reportMonth" style="padding:8px;font-size:16px">
+<button class="btn" onclick="loadMonthlyReport()">📅 عرض التقرير الشهري</button>
+<div id="monthlyReport" style="margin-top:16px"></div>
+</div>
 </div>
 
 <!-- Promotions Panel -->
@@ -714,7 +720,97 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const t = new Date().toISOString().split('T')[0];
   const el = document.getElementById('reportDate');
   if(el) el.value = t;
+  const m = t.substring(0,7);
+  const mel = document.getElementById('reportMonth');
+  if(mel) mel.value = m;
 });
+// ===== التقرير الشهري =====
+async function loadMonthlyReport(){
+  const monthInput = document.getElementById('reportMonth').value;
+  const month = monthInput || new Date().toISOString().substring(0,7);
+  const box = document.getElementById('monthlyReport');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    let rate = 10;
+    try{
+      const cr = await fetch(FB+'/config/commission.json');
+      const cd = await cr.json();
+      if(cd && cd.rate !== undefined) rate = cd.rate;
+    }catch(e){}
+    const rr = await fetch(FB+'/rides.json');
+    const rides = await rr.json() || {};
+    const dr = await fetch(FB+'/drivers.json');
+    const drivers = await dr.json() || {};
+    // تجميع حسب السائق ثم حسب اليوم
+    const stats = {};
+    const dayTotals = {};
+    let monthTrips = 0, monthEarn = 0;
+    Object.keys(rides).forEach(rid=>{
+      const r = rides[rid];
+      if(r.status !== 'completed') return;
+      const ts = r.completedAt || r.createdAt || 0;
+      const d = new Date(ts);
+      const ms = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      if(ms !== month) return;
+      const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      const did = r.driverId;
+      if(!did) return;
+      if(!stats[did]) stats[did] = {trips: 0, earnings: 0, days: {}};
+      if(!stats[did].days[ds]) stats[did].days[ds] = {trips: 0, earnings: 0};
+      stats[did].trips++;
+      stats[did].earnings += (r.fare || 0);
+      stats[did].days[ds].trips++;
+      stats[did].days[ds].earnings += (r.fare || 0);
+      monthTrips++;
+      monthEarn += (r.fare || 0);
+      if(!dayTotals[ds]) dayTotals[ds] = {trips: 0, earnings: 0};
+      dayTotals[ds].trips++;
+      dayTotals[ds].earnings += (r.fare || 0);
+    });
+    if(Object.keys(stats).length === 0){
+      box.innerHTML = '<p style="color:#888;text-align:center">لا توجد رحلات مكتملة بشهر '+month+'</p>';
+      return;
+    }
+    const monthComm = Math.round(monthEarn * rate / 100);
+    let html = `<h3>📅 ${month} — نسبة العمولة: ${rate}%</h3>
+    <div style="margin-bottom:16px;padding:12px;background:#1a1a1a;border-radius:8px">
+    <b>🧾 إجمالي الرحلات:</b> ${monthTrips}<br>
+    <b>💰 إجمالي الأرباح:</b> ${monthEarn.toLocaleString()} ل.س<br>
+    <b>🏢 إجمالي عمولة الشركة (${rate}%):</b> <span style="color:#D4AF37;font-size:18px">${monthComm.toLocaleString()} ل.س</span>
+    </div>
+    <h4>👥 حسب السائق:</h4>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+    <tr style="background:#222"><th style="padding:8px;border:1px solid #444">السائق</th>
+    <th style="padding:8px;border:1px solid #444">الرحلات</th>
+    <th style="padding:8px;border:1px solid #444">الأرباح</th>
+    <th style="padding:8px;border:1px solid #444">العمولة</th></tr>`;
+    Object.keys(stats).forEach(did=>{
+      const s = stats[did];
+      const dname = (drivers[did] && drivers[did].name) || did;
+      const comm = Math.round(s.earnings * rate / 100);
+      html += `<tr><td style="padding:8px;border:1px solid #444">🚕 ${dname}</td>
+      <td style="padding:8px;border:1px solid #444;text-align:center">${s.trips}</td>
+      <td style="padding:8px;border:1px solid #444">${s.earnings.toLocaleString()} ل.س</td>
+      <td style="padding:8px;border:1px solid #444;color:#D4AF37">${comm.toLocaleString()} ل.س</td></tr>`;
+    });
+    html += `</table><h4>📅 حسب اليوم:</h4>
+    <table style="width:100%;border-collapse:collapse">
+    <tr style="background:#222"><th style="padding:8px;border:1px solid #444">التاريخ</th>
+    <th style="padding:8px;border:1px solid #444">الرحلات</th>
+    <th style="padding:8px;border:1px solid #444">الأرباح</th>
+    <th style="padding:8px;border:1px solid #444">العمولة</th></tr>`;
+    Object.keys(dayTotals).sort().forEach(ds=>{
+      const dt = dayTotals[ds];
+      const comm = Math.round(dt.earnings * rate / 100);
+      html += `<tr><td style="padding:8px;border:1px solid #444">${ds}</td>
+      <td style="padding:8px;border:1px solid #444;text-align:center">${dt.trips}</td>
+      <td style="padding:8px;border:1px solid #444">${dt.earnings.toLocaleString()} ل.س</td>
+      <td style="padding:8px;border:1px solid #444;color:#D4AF37">${comm.toLocaleString()} ل.س</td></tr>`;
+    });
+    html += `</table>`;
+    box.innerHTML = html;
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
 
 let promos = [];
 async function loadPromos(){
