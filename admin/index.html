@@ -302,6 +302,23 @@ async function saveAds(){
 // ===== دردشة الدعم =====
 let currentChatId = null;
 let chatPollTimer = null;
+async function deleteChat(chatId){
+  if(!confirm('حذف هذه المحادثة؟')) return;
+  try{
+    await fetch(FB+'/support_chats/'+chatId+'.json', {method:'DELETE'});
+    if(currentChatId === chatId){ currentChatId = null; document.getElementById('chatMsgs').innerHTML=''; }
+    loadSupportChats();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+async function deleteAllChats(){
+  if(!confirm('حذف كل المحادثات؟ لا يمكن التراجع!')) return;
+  try{
+    await fetch(FB+'/support_chats.json', {method:'DELETE'});
+    currentChatId = null;
+    document.getElementById('chatMsgs').innerHTML='';
+    loadSupportChats();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
 async function loadSupportChats(){
   const box = document.getElementById('chatList');
   box.innerHTML = '<p style="color:#888">جاري التحميل...</p>';
@@ -309,7 +326,7 @@ async function loadSupportChats(){
     const r = await fetch(FB+'/support_chats.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888">لا توجد محادثات</p>'; return; }
-    box.innerHTML='';
+    box.innerHTML = `<button class="btn small" style="background:#a33;color:#fff;margin-bottom:8px" onclick="deleteAllChats()">🗑️ مسح الكل</button>`;
     Object.keys(d).forEach(chatId=>{
       const chat = d[chatId];
       if(!chat || !chat.messages) return;
@@ -323,23 +340,34 @@ async function loadSupportChats(){
       const isDriver = chatId.startsWith('driver_');
       const icon = isDriver ? '🚕' : '👤';
       const idLabel = chatId.replace('driver_','').replace('rider_','');
+      // نقطة حمرا للرسائل غير المقروءة
+      const lastRead = chat.lastReadByAdmin || 0;
+      const hasUnread = (last.ts || 0) > lastRead && last.from !== 'admin';
+      const redDot = hasUnread ? ' <span style="color:#f44;font-size:20px">🔴</span>' : '';
       box.innerHTML += `<div class="driver-card" style="cursor:pointer;padding:10px" onclick="openChat('${chatId}')">
-        <b style="cursor:pointer;color:#D4AF37;text-decoration:underline" onclick="event.stopPropagation();showDriverInfo('${chatId}')">${icon} ${senderName || idLabel}</b>
+        <b style="cursor:pointer;color:#D4AF37;text-decoration:underline" onclick="event.stopPropagation();showDriverInfo('${chatId}')">${icon} ${senderName || idLabel}</b>${redDot}
+        <button class="btn small" style="background:#a33;color:#fff;float:left" onclick="event.stopPropagation();deleteChat('${chatId}')">🗑️</button>
         ${senderName ? `<br><span style="color:#888;font-size:12px">${idLabel}</span>` : ''}<br>
         <span style="color:#888;font-size:13px">${(last.text||'').substring(0,40)}</span>
       </div>`;
     });
-    if(!box.innerHTML) box.innerHTML='<p style="color:#888">لا توجد محادثات</p>';
+    if(box.innerHTML.includes('لا توجد')) box.innerHTML='<p style="color:#888">لا توجد محادثات</p>';
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
 }
 async function openChat(chatId){
   currentChatId = chatId;
   document.getElementById('chatTitle').textContent = '💬 ' + chatId;
+  // تعليم كمقروءة
+  try{
+    await fetch(FB+'/support_chats/'+chatId+'/lastReadByAdmin.json', {method:'PUT', body: JSON.stringify(Date.now())});
+  }catch(e){}
   loadChatMsgs();
   // جلب معلومات السائق/الزبون الكاملة
   loadChatUserInfo(chatId);
   if(chatPollTimer) clearInterval(chatPollTimer);
   chatPollTimer = setInterval(loadChatMsgs, 5000);
+  // تحديث القائمة لإزالة النقطة الحمرا
+  setTimeout(loadSupportChats, 1000);
 }
 
 async function loadChatUserInfo(chatId){
