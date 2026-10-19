@@ -1076,6 +1076,26 @@ async function loadMonitor(){
     const r = await fetch(FB+'/drivers.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون</p>'; return; }
+    // جلب نسبة العمولة العامة
+    let globalRate = 10;
+    try{
+      const cr = await fetch(FB+'/config/commission.json');
+      const cd = await cr.json();
+      if(cd && cd.rate !== undefined) globalRate = cd.rate;
+    }catch(e){}
+    // حساب الأرباح من الرحلات المكتملة (مصدر موثوق)
+    let rideStats = {};
+    try{
+      const rr = await fetch(FB+'/rides.json');
+      const rides = await rr.json() || {};
+      Object.keys(rides).forEach(rid=>{
+        const rv = rides[rid];
+        if(rv.status === 'completed' && rv.driverId && rv.fare){
+          if(!rideStats[rv.driverId]) rideStats[rv.driverId] = 0;
+          rideStats[rv.driverId] += rv.fare;
+        }
+      });
+    }catch(e){}
     const now = Date.now();
     box.innerHTML='';
     let count = 0;
@@ -1095,18 +1115,24 @@ async function loadMonitor(){
       const delBtn = `<button class="btn small" style="background:#a33;color:#fff" onclick="deleteDriver('${id}','${(v.name||id).replace(/'/g,'')}')">🗑️ حذف</button>`;
       const commOwed = v.commissionOwed || 0;
       const commPaid = v.commissionPaid || 0;
-      const totalEarn = v.totalEarnings || 0;
-      const commBadge = commOwed > 0
-        ? `<span class="badge rejected">🏢 عمولة مستحقة: ${commOwed.toLocaleString()} ل.س</span>`
+      // الأرباح المحسوبة من الرحلات (مصدر موثوق)
+      const calcEarn = rideStats[id] || 0;
+      const drvRate = v.commissionRate !== undefined ? v.commissionRate : globalRate;
+      const calcComm = Math.round(calcEarn * drvRate / 100);
+      // استخدم القيمة الأكبر (المزامنة أو المحسوبة)
+      const totalEarn = Math.max(v.totalEarnings || 0, calcEarn);
+      const dispOwed = Math.max(commOwed, calcComm - commPaid);
+      const commBadge = dispOwed > 0
+        ? `<span class="badge rejected">🏢 عمولة مستحقة: ${dispOwed.toLocaleString()} ل.س</span>`
         : `<span class="badge approved">🏢 لا عمولة مستحقة</span>`;
-      const paidBtn = commOwed > 0
-        ? `<button class="btn small" style="background:#2a2;color:#fff" onclick="markCommissionPaid('${id}',${commOwed})">✅ تم الدفع</button>`
+      const paidBtn = dispOwed > 0
+        ? `<button class="btn small" style="background:#2a2;color:#fff" onclick="markCommissionPaid('${id}',${dispOwed})">✅ تم الدفع</button>`
         : '';
-      const drvRate = v.commissionRate !== undefined ? v.commissionRate : null;
-      const rateLbl = drvRate !== null
-        ? `<span class="badge approved">📊 عمولته: ${drvRate}%</span>`
+      const drvRateDisp = v.commissionRate !== undefined ? v.commissionRate : null;
+      const rateLbl = drvRateDisp !== null
+        ? `<span class="badge approved">📊 عمولته: ${drvRateDisp}%</span>`
         : `<span class="badge">📊 عمولة عامة</span>`;
-      const rateBtn = `<button class="btn small" onclick="setDriverRate('${id}',${drvRate === null ? 'null' : drvRate})">📊 نسبة خاصة</button>`;
+      const rateBtn = `<button class="btn small" onclick="setDriverRate('${id}',${drvRateDisp === null ? 'null' : drvRateDisp})">📊 نسبة خاصة</button>`;
       const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
       const curCat = v.carCategory || 'economy';
       const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
