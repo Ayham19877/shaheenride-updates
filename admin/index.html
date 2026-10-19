@@ -1272,10 +1272,19 @@ async function loadCancelled(){
       const dt = v.createdAt ? new Date(v.createdAt) : null;
       const dateStr = dt ? dt.toLocaleDateString('ar') : '';
       const timeStr = dt ? dt.toLocaleTimeString('ar') : '';
+      // معلومة الرفض إن وجدت
+      let rejInfo = '';
+      if(v.rejectedBy){
+        const m = (v.rejectedBy||'').match(/^([^(]+)\s*\(([^)]+)\)/);
+        const rejId = m ? m[1].trim() : v.rejectedBy;
+        const rejReason = m ? m[2].trim() : '';
+        const rejName = (drivers[rejId] && drivers[rejId].name) || rejId;
+        rejInfo = `<br>⚠️ <b>رفضها:</b> ${rejName}${rejReason ? ' ('+rejReason+')' : ''}`;
+      }
       box.innerHTML += `<div class="driver-card">
         <h3>🚫 رحلة ملغاة <span class="badge rejected">${v.fare||0} ل.س</span></h3>
         <div class="info">
-        🚕 <b>السائق:</b> ${drvName}<br>
+        🚕 <b>السائق:</b> ${drvName}${rejInfo}<br>
         👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         🏷️ ${v.category||''} | 📍 ${v.city||''}
