@@ -1378,7 +1378,9 @@ async function loadRejected(){
         👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
-        📝 <b>سبب الرفض:</b> ${reason||'غير محدد'}
+        📝 <b>سبب الرفض:</b> ${reason||'غير محدد'}<br>
+        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
+        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
         </div>
       </div>`;
     });
