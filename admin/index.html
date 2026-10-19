@@ -607,11 +607,17 @@ async function loadFares(){
     const r = await fetch(FB+'/config/fares.json');
     const d = await r.json();
     const box = document.getElementById('faresList'); box.innerHTML='';
+    // ترويسة الأعمدة
+    box.innerHTML += `<div class="fare-row" style="font-weight:bold;color:#D4AF37">
+      <label></label>
+      <span style="flex:1;text-align:center">فتحة العداد</span>
+      <span style="flex:1;text-align:center">سعر الكيلومتر</span>
+    </div>`;
     CATS.forEach(c=>{
       const v = (d && d[c.id]) || DEFAULTS[c.id];
       box.innerHTML += `<div class="fare-row">
         <label>${c.ar}</label>
-        <input type="number" id="base_${c.id}" value="${v.base}" placeholder="الأجرة الأساسية">
+        <input type="number" id="base_${c.id}" value="${v.base}" placeholder="فتحة العداد">
         <input type="number" id="km_${c.id}" value="${v.perKm}" placeholder="سعر الكيلومتر">
       </div>`;
     });
