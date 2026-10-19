@@ -123,6 +123,8 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <div class="card">
 <h2>📊 التقرير اليومي</h2>
 <input type="date" id="reportDate" style="padding:8px;font-size:16px">
+<button class="btn small" onclick="setReportDate(0)">اليوم</button>
+<button class="btn small" onclick="setReportDate(1)">أمس</button>
 <button class="btn" onclick="loadDailyReport()">📊 عرض التقرير</button>
 <div id="dailyReport" style="margin-top:16px"></div>
 </div>
@@ -716,6 +718,12 @@ async function saveCommRateTop(){
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
 // ===== التقرير اليومي =====
+function setReportDate(daysAgo){
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  document.getElementById('reportDate').value = d.toISOString().split('T')[0];
+  loadDailyReport();
+}
 async function loadDailyReport(){
   const dateInput = document.getElementById('reportDate').value;
   const date = dateInput || new Date().toISOString().split('T')[0];
