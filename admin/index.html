@@ -94,6 +94,7 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <button class="tab" onclick="showTab('rides',this)">🧾 الرحلات</button>
 <button class="tab" onclick="showTab('riders',this)">👥 الزبائن</button>
 <button class="tab" onclick="showTab('fares',this)">💰 الأسعار</button>
+<button class="tab" onclick="showTab('daily',this)">📊 التقرير اليومي</button>
 <button class="tab" onclick="showTab('promos',this)">🎁 العروض</button>
 <button class="tab" onclick="showTab('ads',this)">📢 إعلانات</button>
 <button class="tab" onclick="showTab('support',this)">🆘 الدعم</button>
@@ -108,6 +109,22 @@ header p{color:#888;font-size:14px;margin-top:5px}
 <h2>💰 أسعار الرحلات (ليرة سورية)</h2>
 <div id="faresList"></div>
 <button class="btn" onclick="saveFares()">💾 حفظ الأسعار</button>
+</div>
+<div class="card">
+<h2>🏢 نسبة عمولة الشركة (%)</h2>
+<p style="color:#888">النسبة المقتطعة من أرباح السائقين</p>
+<input type="number" id="commRate" min="0" max="100" step="0.5" style="width:100px;padding:8px;font-size:18px" value="10"> %
+<button class="btn" onclick="saveCommRate()">💾 حفظ النسبة</button>
+</div>
+</div>
+
+<!-- Daily Report Panel -->
+<div class="panel" id="panel-daily">
+<div class="card">
+<h2>📊 التقرير اليومي</h2>
+<input type="date" id="reportDate" style="padding:8px;font-size:16px">
+<button class="btn" onclick="loadDailyReport()">📊 عرض التقرير</button>
+<div id="dailyReport" style="margin-top:16px"></div>
 </div>
 </div>
 
@@ -234,7 +251,7 @@ document.getElementById('adminEmail').value = localStorage.getItem('sr_email') |
 function saveConfig(){ FB = document.getElementById('fbUrl').value.trim().replace(/\/$/,''); localStorage.setItem('sr_fb', FB); showStatus('تم حفظ الرابط ✅','ok'); }
 function saveEmail(){ const em = document.getElementById('adminEmail').value.trim(); localStorage.setItem('sr_email', em); fetch(FB+'/config/adminEmail.json', {method:'PUT', body: JSON.stringify(em)}); showStatus('تم حفظ البريد ✅','ok'); }
 function showStatus(msg, type){ const s=document.getElementById('status'); s.textContent=msg; s.className='status '+type; setTimeout(()=>s.className='status',3000); }
-function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } }
+function showTab(name, el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); (el||event.target).classList.add('active'); document.getElementById('panel-'+name).classList.add('active'); if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } else if(name==='fares'){ loadCommRate(); } else if(name==='daily'){ loadDailyReport(); } }
 
 // ===== الإعلانات =====
 let ads = [];
@@ -608,6 +625,96 @@ async function saveFares(){
     if(r.ok) showStatus('تم حفظ الأسعار ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
+async function saveCommRate(){
+  const v = parseFloat(document.getElementById('commRate').value);
+  if(isNaN(v) || v < 0 || v > 100){ showStatus('نسبة غير صالحة','err'); return; }
+  try{
+    const r = await fetch(FB+'/config/commission.json',{method:'PUT',
+      body:JSON.stringify({rate: v}),headers:{'Content-Type':'application/json'}});
+    if(r.ok) showStatus('تم حفظ نسبة العمولة: '+v+'% ✅','ok'); else showStatus('فشل الحفظ','err');
+  }catch(e){ showStatus('خطأ: '+e.message,'err'); }
+}
+async function loadCommRate(){
+  try{
+    const r = await fetch(FB+'/config/commission.json');
+    const d = await r.json();
+    if(d && d.rate !== undefined) document.getElementById('commRate').value = d.rate;
+  }catch(e){}
+}
+// ===== التقرير اليومي =====
+async function loadDailyReport(){
+  const dateInput = document.getElementById('reportDate').value;
+  const date = dateInput || new Date().toISOString().split('T')[0];
+  const box = document.getElementById('dailyReport');
+  box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
+  try{
+    // جلب نسبة العمولة
+    let rate = 10;
+    try{
+      const cr = await fetch(FB+'/config/commission.json');
+      const cd = await cr.json();
+      if(cd && cd.rate !== undefined) rate = cd.rate;
+    }catch(e){}
+    // جلب الرحلات المكتملة
+    const rr = await fetch(FB+'/rides.json');
+    const rides = await rr.json() || {};
+    // جلب السائقين
+    const dr = await fetch(FB+'/drivers.json');
+    const drivers = await dr.json() || {};
+    // تجميع حسب السائق
+    const stats = {};
+    Object.keys(rides).forEach(rid=>{
+      const r = rides[rid];
+      if(r.status !== 'completed') return;
+      const ts = r.completedAt || r.createdAt || 0;
+      const d = new Date(ts);
+      const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      if(ds !== date) return;
+      const did = r.driverId;
+      if(!did) return;
+      if(!stats[did]) stats[did] = {trips: 0, earnings: 0};
+      stats[did].trips++;
+      stats[did].earnings += (r.fare || 0);
+    });
+    if(Object.keys(stats).length === 0){
+      box.innerHTML = '<p style="color:#888;text-align:center">لا توجد رحلات مكتملة بتاريخ '+date+'</p>';
+      return;
+    }
+    let totalEarn = 0, totalComm = 0;
+    let html = `<h3>📅 ${date} — نسبة العمولة: ${rate}%</h3>
+    <table style="width:100%;border-collapse:collapse">
+    <tr style="background:#222"><th style="padding:8px;border:1px solid #444">السائق</th>
+    <th style="padding:8px;border:1px solid #444">الرحلات</th>
+    <th style="padding:8px;border:1px solid #444">الأرباح</th>
+    <th style="padding:8px;border:1px solid #444">العمولة (${rate}%)</th>
+    <th style="padding:8px;border:1px solid #444">المستحق حالياً</th></tr>`;
+    Object.keys(stats).forEach(did=>{
+      const s = stats[did];
+      const dname = (drivers[did] && drivers[did].name) || did;
+      const comm = Math.round(s.earnings * rate / 100);
+      const owed = (drivers[did] && drivers[did].commissionOwed) || 0;
+      totalEarn += s.earnings;
+      totalComm += comm;
+      html += `<tr><td style="padding:8px;border:1px solid #444">🚕 ${dname}</td>
+      <td style="padding:8px;border:1px solid #444;text-align:center">${s.trips}</td>
+      <td style="padding:8px;border:1px solid #444">${s.earnings.toLocaleString()} ل.س</td>
+      <td style="padding:8px;border:1px solid #444;color:#D4AF37">${comm.toLocaleString()} ل.س</td>
+      <td style="padding:8px;border:1px solid #444;color:#f77">${owed.toLocaleString()} ل.س</td></tr>`;
+    });
+    html += `</table>
+    <div style="margin-top:16px;padding:12px;background:#1a1a1a;border-radius:8px">
+    <b>💰 إجمالي أرباح السائقين:</b> ${totalEarn.toLocaleString()} ل.س<br>
+    <b>🏢 إجمالي عمولة الشركة (${rate}%):</b> <span style="color:#D4AF37;font-size:18px">${totalComm.toLocaleString()} ل.س</span>
+    </div>`;
+    box.innerHTML = html;
+  }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+// تعيين تاريخ اليوم افتراضياً
+document.addEventListener('DOMContentLoaded', ()=>{
+  const t = new Date().toISOString().split('T')[0];
+  const el = document.getElementById('reportDate');
+  if(el) el.value = t;
+});
 
 let promos = [];
 async function loadPromos(){
@@ -822,6 +929,16 @@ async function loadMonitor(){
         ? `<button class="btn small" onclick="setSuspended('${id}',false)">▶️ تفعيل</button>`
         : `<button class="btn small" onclick="setSuspended('${id}',true)">🚫 إيقاف</button>`;
       const delBtn = `<button class="btn small" style="background:#a33;color:#fff" onclick="deleteDriver('${id}','${(v.name||id).replace(/'/g,'')}')">🗑️ حذف</button>`;
+      const commOwed = v.commissionOwed || 0;
+      const commPaid = v.commissionPaid || 0;
+      const totalEarn = v.totalEarnings || 0;
+      const commBadge = commOwed > 0
+        ? `<span class="badge rejected">🏢 عمولة مستحقة: ${commOwed.toLocaleString()} ل.س</span>`
+        : `<span class="badge approved">🏢 لا عمولة مستحقة</span>`;
+      const paidBtn = commOwed > 0
+        ? `<button class="btn small" style="background:#2a2;color:#fff" onclick="markCommissionPaid('${id}',${commOwed})">✅ تم الدفع</button>`
+        : '';
+      const adjBtn = `<button class="btn small" onclick="adjustCommission('${id}',${commOwed})">✏️ تعديل العمولة</button>`;
       const catNames = {economy:'اقتصادية', family:'عائلية', modern:'حديثة', vip:'VIP'};
       const curCat = v.carCategory || 'economy';
       const catBtn = `<button class="btn small" onclick="setCarCategory('${id}')">🚗 ${catNames[curCat]||curCat}</button>`;
@@ -834,6 +951,8 @@ async function loadMonitor(){
         📱 ${v.phone||'?'}<br>
         🚗 ${v.car||''} ${v.color||''} | 🔢 ${v.plate||''}<br>
         📍 ${v.city||''} | ⭐ ${v.rating||5} (${v.trips||0} رحلة)<br>
+        💰 إجمالي الأرباح: ${totalEarn.toLocaleString()} ل.س<br>
+        ${commBadge} ${paidBtn} ${adjBtn}<br>
         📡 آخر تحديث: ${age < 60 ? 'منذ '+age+' ثانية' : 'منذ '+Math.round(age/60)+' دقيقة'}<br>
         ${v.lat ? `🗺️ <a href="https://www.google.com/maps?q=${v.lat},${v.lon}" target="_blank" style="color:#D4AF37">عرض على الخريطة</a>` : '📍 لا يوجد موقع'}
         </div>
@@ -841,6 +960,30 @@ async function loadMonitor(){
     });
     if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون مسجلون</p>';
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+}
+// ===== نظام العمولة 10% =====
+async function markCommissionPaid(id, amount){
+  if(!confirm('تأكيد استلام '+amount.toLocaleString()+' ل.س عمولة من السائق؟')) return;
+  try{
+    // جلب المدفوع السابق لتراكمه
+    const gr = await fetch(FB+'/drivers/'+id+'.json');
+    const gd = await gr.json() || {};
+    const prevPaid = gd.commissionPaid || 0;
+    await fetch(FB+'/drivers/'+id+'.json', {method:'PATCH',
+      body: JSON.stringify({commissionOwed: 0, commissionPaid: prevPaid + amount})});
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
+}
+async function adjustCommission(id, current){
+  const v = prompt('المبلغ المستحق الجديد (ل.س):', current);
+  if(v === null) return;
+  const n = parseInt(v);
+  if(isNaN(n) || n < 0){ alert('مبلغ غير صالح'); return; }
+  try{
+    await fetch(FB+'/drivers/'+id+'.json', {method:'PATCH',
+      body: JSON.stringify({commissionOwed: n})});
+    loadMonitor();
+  }catch(e){ alert('خطأ: '+e.message); }
 }
 // Auto-refresh monitor every 30s when visible
 setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
