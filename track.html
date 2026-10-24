@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تتبع رحلة شاهين رايد</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #121212; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif; }
+  header { background: #1e1e1e; border-bottom: 2px solid #c9a227; padding: 14px 16px; text-align: center; }
+  header h1 { color: #c9a227; font-size: 20px; }
+  header p { color: #aaa; font-size: 13px; margin-top: 4px; }
+  #info { background: #1e1e1e; border: 1px solid #c9a227; border-radius: 12px; margin: 12px; padding: 14px; }
+  #info .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 15px; }
+  #info .k { color: #aaa; }
+  #info .v { color: #fff; font-weight: bold; }
+  #status { text-align: center; font-size: 17px; font-weight: bold; color: #c9a227; padding: 6px 0 2px; }
+  #updated { text-align: center; color: #888; font-size: 12px; padding-bottom: 4px; }
+  #map { height: calc(100vh - 230px); min-height: 320px; width: 100%; }
+  #ended { display: none; text-align: center; padding: 60px 20px; font-size: 18px; color: #ff6b6b; }
+  #err { display: none; text-align: center; padding: 60px 20px; font-size: 16px; color: #aaa; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚕 تتبع رحلة شاهين رايد</h1>
+  <p>موقع السائق مباشر على الخريطة</p>
+</header>
+<div id="info">
+  <div id="status">جارٍ تحميل موقع الرحلة…</div>
+  <div class="row"><span class="k">السائق</span><span class="v" id="drv">—</span></div>
+  <div class="row"><span class="k">السيارة</span><span class="v" id="car">—</span></div>
+  <div class="row"><span class="k">اللوحة</span><span class="v" id="plate">—</span></div>
+  <div id="updated"></div>
+</div>
+<div id="map"></div>
+<div id="ended">انتهت المشاركة — الرحلة انتهت أو أُلغيت.</div>
+<div id="err">رابط التتبع غير صالح. تأكد من الرابط المُرسل.</div>
+<script>
+  var params = new URLSearchParams(location.search);
+  var host = params.get('s'), token = params.get('t');
+  var map, drvMarker, pkMarker, dsMarker, fitted = false;
+  var STATUS_AR = { searching: 'جارٍ البحث عن سائق', accepted: 'السائق قادم إليك', arriving: 'السائق وصل — في الخارج بانتظارك', ontrip: 'الرحلة جارية', completed: 'وصلت الرحلة — شكراً', cancelled: 'أُلغيت الرحلة' };
+  function dot(color) {
+    return { path: google.maps.SymbolPath.CIRCLE, scale: 11, fillColor: color, fillOpacity: 1, strokeColor: '#000', strokeWeight: 2 };
+  }
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), { center: { lat: 33.51, lng: 36.29 }, zoom: 12, styles: [{ elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] }] });
+    if (!host || !token) { document.getElementById('err').style.display = 'block'; document.getElementById('map').style.display = 'none'; return; }
+    refresh(); setInterval(refresh, 10000);
+  }
+  function refresh() {
+    fetch('https://' + host + '/shared/' + token + '.json?cb=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d) { document.getElementById('ended').style.display = 'block'; document.getElementById('map').style.display = 'none'; return; }
+        document.getElementById('status').textContent = STATUS_AR[d.status] || 'رحلة جارية';
+        document.getElementById('drv').textContent = d.driverName || '—';
+        document.getElementById('car').textContent = ((d.carColor || '') + ' ' + (d.carModel || '')).trim() || '—';
+        document.getElementById('plate').textContent = d.plate || '—';
+        document.getElementById('updated').textContent = 'آخر تحديث: ' + new Date(d.updatedAt || Date.now()).toLocaleTimeString('ar');
+        var dl = d.driverLoc, pk = d.pickup, ds = d.dest;
+        if (dl && dl.lat) {
+          var pos = { lat: dl.lat, lng: dl.lon };
+          if (!drvMarker) drvMarker = new google.maps.Marker({ map: map, icon: dot('#c9a227'), title: 'السائق' });
+          drvMarker.setPosition(pos);
+          if (!fitted) { map.setCenter(pos); map.setZoom(15); fitted = true; } else map.panTo(pos);
+        }
+        if (pk && pk.lat) { if (!pkMarker) pkMarker = new google.maps.Marker({ map: map, icon: dot('#2ecc71'), title: 'نقطة الانطلاق' }); pkMarker.setPosition({ lat: pk.lat, lng: pk.lon }); }
+        if (ds && ds.lat) { if (!dsMarker) dsMarker = new google.maps.Marker({ map: map, icon: dot('#e53935'), title: 'الوجهة' }); dsMarker.setPosition({ lat: ds.lat, lng: ds.lon }); }
+      })
+      .catch(function () { document.getElementById('status').textContent = 'تعذر الاتصال — إعادة المحاولة…'; });
+  }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDhO93LZHG57soAemjWPVDtSDnCdnEobOQ&callback=initMap&language=ar" async defer></script>
+</body>
+</html>
