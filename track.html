@@ -54,6 +54,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d) { document.getElementById('ended').style.display = 'block'; document.getElementById('map').style.display = 'none'; return; }
+        if (d.expiresAt && Date.now() > d.expiresAt) { document.getElementById('ended').style.display = 'block'; document.getElementById('map').style.display = 'none'; return; }
         document.getElementById('status').textContent = STATUS_AR[d.status] || 'رحلة جارية';
         document.getElementById('drv').textContent = d.driverName || '—';
         document.getElementById('car').textContent = ((d.carColor || '') + ' ' + (d.carModel || '')).trim() || '—';
