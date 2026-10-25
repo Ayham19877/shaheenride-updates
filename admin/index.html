@@ -112,6 +112,7 @@ input[type="date"]:focus,input[type="month"]:focus{border-color:#D4AF37;outline:
     <h3>🚕 إدارة السائقين</h3>
     <div class="nav-btns">
       <button class="tab" onclick="showTab('drivers',this)">🚕 السائقين</button>
+      <button class="tab" onclick="showTab('map',this)">🗺️ الخريطة</button>
       <button class="tab" onclick="showTab('apps',this)">📝 طلبات جديدة</button>
     </div>
   </div>
@@ -245,16 +246,19 @@ input[type="date"]:focus,input[type="month"]:focus{border-color:#D4AF37;outline:
 <button class="btn small" id="fltOff" onclick="setDriverFilter('offline')">🔴 غير متصل</button>
 </div>
 <div id="monitorList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
-<button class="btn small" onclick="loadMonitor();loadDriverMap()">🔄 تحديث</button>
+<button class="btn small" onclick="loadMonitor()">🔄 تحديث</button>
 </div>
 </div>
 
+<!-- Map Panel -->
+<div class="panel" id="panel-map">
 <div class="card">
 <h2>🗺️ خريطة السائقين المتصلين</h2>
 <div id="driverMap" dir="ltr" style="height:420px;border-radius:12px;border:1px solid #D4AF37"></div>
 <div style="text-align:center;margin-top:10px">
 <button class="btn small" onclick="loadDriverMap()">🔄 تحديث الخريطة</button>
 <span id="mapStatus" style="color:#888;font-size:13px"></span>
+</div>
 </div>
 </div>
 
@@ -361,7 +365,7 @@ function showTab(name, el){
   document.getElementById('navSections').style.display='none';
   document.getElementById('backBar').style.display='block';
   window.scrollTo(0,0);
-  if(name==='drivers'){ loadMonitor(); loadDriverMap(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } else if(name==='fares'){ loadCommRate(); } else if(name==='daily'){ loadDailyReport(); }
+  if(name==='drivers'){ loadMonitor(); } else if(name==='map'){ loadDriverMap(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } else if(name==='fares'){ loadCommRate(); } else if(name==='daily'){ loadDailyReport(); }
 }
 function goHome(){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -1277,7 +1281,7 @@ async function loadDriverMap(){
       if(st) st.textContent = 'تعذّرت تحميل مكتبة الخريطة (تحقق من الاتصال)';
       return;
     }
-    const panel = document.getElementById('panel-drivers');
+    const panel = document.getElementById('panel-map');
     if(!panel || !panel.classList.contains('active')) return; // الخريطة مخفية — تُبنى عند فتح التبويب
     const r = await fb('/drivers.json'); const d = await r.json() || {};
     const now = Date.now();
@@ -1456,7 +1460,7 @@ async function setDriverRate(id, current){
   }catch(e){ alert('خطأ: '+e.message); }
 }
 // Auto-refresh monitor every 30s when visible
-setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); loadDriverMap(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
+setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); } if(document.getElementById('panel-map').classList.contains('active')){ loadDriverMap(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
 
 // أسماء الشوارع من الإحداثيات (ترجمة عكسية Photon — نفس خدمة البحث بالتطبيق)
 const revCache = {};
@@ -1740,7 +1744,6 @@ function doLogin(){
     sessionStorage.setItem('sr_auth','1');
     document.getElementById('loginOverlay').style.display='none';
     document.getElementById('appContent').style.display='block';
-    setTimeout(loadDriverMap, 300);
   } else {
     document.getElementById('loginErr').style.display='block';
   }
