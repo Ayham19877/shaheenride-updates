@@ -1347,6 +1347,8 @@ async function loadDriverMap(){
       // اسم السائق فوق المؤشر دائماً — بلا حاجة للكبس
       m.bindTooltip((o.isOn ? '🟢 ' : '🔴 ') + (o.v.name || o.id), {permanent: true, direction: 'top', offset: [0, -30], className: 'driver-label'});
       m.bindPopup(`<b>🚕 ${o.v.name || o.id}</b><br>${o.isOn ? '🟢 متصل' : '🔴 غير متصل'}<br>📱 ${o.v.phone || ''}<br>🚗 ${o.v.carModel || o.v.car || ''} ${o.v.color || ''} ${o.v.plate || ''}<br>📍 ${o.v.city || ''}<br>🕐 آخر تحديث: ${fmtAge(o.age)}`);
+      // الكبس على السيارة يقرّب عليها فوراً (مع فتح التفاصيل)
+      m.on('click', ()=>{ driverMap.flyTo([o.lat, o.lon], 16, {duration: 1.2}); });
       driverMarkers.push(m);
       bounds.push([o.lat, o.lon]);
     });
