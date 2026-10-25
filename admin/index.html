@@ -37,6 +37,9 @@ header p{color:#888;font-size:13px;margin-top:6px;letter-spacing:2px}
 .taxi-badge.off{background:#E53935}
 .driver-label{background:#1e1e1e !important;border:2px solid #D4AF37 !important;color:#D4AF37 !important;font-weight:bold;border-radius:8px;padding:3px 10px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
 .leaflet-tooltip-top.driver-label::before{display:none}
+/* ملء الشاشة للخريطة */
+#driverMap.map-fullscreen{position:fixed !important;top:0;left:0;width:100vw !important;height:100vh !important;z-index:9999;border-radius:0 !important;border:none !important}
+.map-fs-btn a{display:block;width:34px;height:34px;line-height:34px;text-align:center;font-size:20px;color:#111 !important;text-decoration:none}
 .card{background:linear-gradient(145deg,#161616,#1c1c1c);border:1px solid #2e2e2e;border-radius:20px;padding:24px;margin-bottom:20px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .card h2{color:#D4AF37;margin-bottom:18px;font-size:19px;display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #2a2a2a}
 .fare-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center;margin-bottom:12px;padding:14px;background:#1e1e1e;border-radius:14px;border:1px solid #2a2a2a}
@@ -259,6 +262,7 @@ input[type="date"]:focus,input[type="month"]:focus{border-color:#D4AF37;outline:
 <div id="driverMap" dir="ltr" style="height:420px;border-radius:12px;border:1px solid #D4AF37"></div>
 <div style="text-align:center;margin-top:10px">
 <button class="btn small" onclick="loadDriverMap()">🔄 تحديث الخريطة</button>
+<button class="btn small" id="mapFsBtn" onclick="toggleMapFullscreen()">⛶ ملء الشاشة</button>
 <span id="mapStatus" style="color:#888;font-size:13px"></span>
 </div>
 </div>
@@ -1285,6 +1289,17 @@ function fmtAge(ms){
   if(h < 24) return 'قبل ' + h + ' ساعة';
   return 'قبل ' + Math.floor(h / 24) + ' يوم';
 }
+// ملء الشاشة للخريطة: زر تحت الخريطة للدخول، وزر ✕ فوقها للخروج
+function toggleMapFullscreen(){
+  const el = document.getElementById('driverMap');
+  if(!el) return;
+  const full = el.classList.toggle('map-fullscreen');
+  const cardBtn = document.getElementById('mapFsBtn');
+  if(cardBtn) cardBtn.textContent = full ? '✕ تصغير الخريطة' : '⛶ ملء الشاشة';
+  const ctl = document.querySelector('.map-fs-btn a');
+  if(ctl) ctl.textContent = full ? '✕' : '⛶';
+  setTimeout(()=>{ if(driverMap) driverMap.invalidateSize(); }, 100);
+}
 async function loadDriverMap(){
   const st = document.getElementById('mapStatus');
   try{
@@ -1311,6 +1326,18 @@ async function loadDriverMap(){
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '© OpenStreetMap'
       }).addTo(driverMap);
+      const FsCtl = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function(){
+          const box = L.DomUtil.create('div', 'leaflet-bar map-fs-btn');
+          const a = L.DomUtil.create('a', '', box);
+          a.href = '#'; a.title = 'ملء الشاشة'; a.textContent = '⛶';
+          L.DomEvent.on(a, 'click', function(e){ L.DomEvent.preventDefault(e); toggleMapFullscreen(); });
+          L.DomEvent.disableClickPropagation(box);
+          return box;
+        }
+      });
+      driverMap.addControl(new FsCtl());
     }
     driverMarkers.forEach(m=>driverMap.removeLayer(m));
     driverMarkers = [];
