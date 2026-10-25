@@ -30,6 +30,11 @@ header p{color:#888;font-size:13px;margin-top:6px;letter-spacing:2px}
 .panel{display:none;animation:fadeIn .3s}
 .panel.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* خريطة السائقين: تاكسي أصفر + اسم فوق المؤشر */
+.leaflet-div-icon.taxi-marker{background:transparent;border:none}
+.taxi-badge{width:44px;height:44px;border-radius:50%;background:#FFC107;border:3px solid #1a1a1a;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.driver-label{background:#1e1e1e !important;border:2px solid #D4AF37 !important;color:#D4AF37 !important;font-weight:bold;border-radius:8px;padding:3px 10px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.leaflet-tooltip-top.driver-label::before{display:none}
 .card{background:linear-gradient(145deg,#161616,#1c1c1c);border:1px solid #2e2e2e;border-radius:20px;padding:24px;margin-bottom:20px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .card h2{color:#D4AF37;margin-bottom:18px;font-size:19px;display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #2a2a2a}
 .fare-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center;margin-bottom:12px;padding:14px;background:#1e1e1e;border-radius:14px;border:1px solid #2a2a2a}
@@ -1258,6 +1263,13 @@ async function setSuspended(driverId, suspend){
 // خريطة السائقين المتصلين (24.59): Leaflet + OpenStreetMap — بلا مفتاح،
 // تُحدث كل 30 ثانية مع قائمة السائقين وكلما فُتح تبويب السائقين
 let driverMap = null, driverMarkers = [];
+// أيقونة تاكسي صفراء (مثل مؤشر التاكسي بالتطبيق) بدل الدبوس الأزرق
+const taxiIcon = (typeof L !== 'undefined') ? L.divIcon({
+  className: 'taxi-marker',
+  html: '<div class="taxi-badge">🚕</div>',
+  iconSize: [44, 44],
+  iconAnchor: [22, 22]
+}) : null;
 async function loadDriverMap(){
   const st = document.getElementById('mapStatus');
   try{
@@ -1290,7 +1302,9 @@ async function loadDriverMap(){
     const bounds = [];
     online.forEach(o=>{
       const mins = Math.max(0, Math.round(o.age / 60000));
-      const m = L.marker([o.lat, o.lon]).addTo(driverMap);
+      const m = L.marker([o.lat, o.lon], {icon: taxiIcon}).addTo(driverMap);
+      // اسم السائق فوق المؤشر دائماً — بلا حاجة للكبس
+      m.bindTooltip(o.v.name || o.id, {permanent: true, direction: 'top', offset: [0, -30], className: 'driver-label'});
       m.bindPopup(`<b>🚕 ${o.v.name || o.id}</b><br>📱 ${o.v.phone || ''}<br>🚗 ${o.v.carModel || o.v.car || ''} ${o.v.color || ''} ${o.v.plate || ''}<br>📍 ${o.v.city || ''}<br>🕐 آخر تحديث: قبل ${mins} دقيقة`);
       driverMarkers.push(m);
       bounds.push([o.lat, o.lon]);
@@ -1336,6 +1350,7 @@ async function loadMonitor(){
     Object.keys(d).forEach(id=>{
       if(id.indexOf('_debug_') === 0) return; // سجلات تشخيص لا سائقين
       const v = d[id];
+      const age = Math.round((now - (v.updatedAt||0))/1000);
       const isOnline = v.online && age <= 120;
       // تطبيق الفلتر
       if(driverFilter==='online' && !isOnline) return;
