@@ -1333,6 +1333,83 @@ async function setDriverRate(id, current){
 // Auto-refresh monitor every 30s when visible
 setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
 
+// أسماء الشوارع من الإحداثيات (ترجمة عكسية Photon — نفس خدمة البحث بالتطبيق)
+const revCache = {};
+async function resolveRevNames(box){
+  const spans = box.querySelectorAll('.rev');
+  const todo = {};
+  spans.forEach(s=>{
+    const k = s.dataset.lat+','+s.dataset.lon;
+    if(revCache[k]){ s.textContent = revCache[k]; }
+    else (todo[k] = todo[k] || []).push(s);
+  });
+  await Promise.all(Object.keys(todo).map(async k=>{
+    const [la, lo] = k.split(',');
+    try{
+      const r = await fetch('https://photon.komoot.io/reverse?lat='+la+'&lon='+lo+'&limit=1');
+      const j = await r.json();
+      const p = (j.features && j.features[0] && j.features[0].properties) || {};
+      const name = (p.street ? p.street + (p.city ? '، ' + p.city : '') : (p.name || ''));
+      if(name){ revCache[k] = name; todo[k].forEach(s=>{ s.textContent = name; }); }
+    }catch(e){}
+  }));
+}
+
+// فاتورة الرحلة (24.58): تفاصيل العداد + عمولة الشركة
+window._ridesData = window._ridesData || {};
+let _commRateCache = null;
+async function getCommRate(){
+  if(_commRateCache !== null) return _commRateCache;
+  try{ const r = await fb('/config/commission.json'); const j = await r.json(); _commRateCache = (j && j.rate != null) ? j.rate : 10; }
+  catch(e){ _commRateCache = 10; }
+  return _commRateCache;
+}
+async function showInvoice(id){
+  const v = window._ridesData[id];
+  if(!v) return;
+  let rate = await getCommRate();
+  try{
+    if(v.driverId){
+      const r = await fb('/drivers/'+v.driverId+'.json'); const d = await r.json();
+      if(d && d.commissionRate != null) rate = d.commissionRate;
+    }
+  }catch(e){}
+  const fare = v.fare || 0;
+  const comm = Math.round(fare * rate / 100);
+  const net = fare - comm;
+  let rows = '';
+  if(v.meterBase != null){
+    const kmPart = Math.floor((v.meterKm||0) * (v.meterPerKm||0));
+    const minPart = (v.meterMin||0) * (v.meterPerMin||500);
+    rows = `<div>🚖 فتحة العداد: <b>${v.meterBase} ل.س</b></div>
+    <div>📏 المسافة: <b>${(+v.meterKm).toFixed(2)} كم × ${v.meterPerKm} ل.س = ${kmPart} ل.س</b></div>
+    <div>⏱️ الوقت: <b>${v.meterMin} دقيقة × ${v.meterPerMin||500} ل.س = ${minPart} ل.س</b></div>`;
+  } else {
+    rows = `<div style="color:#fa0">تفاصيل العداد غير مسجلة لهذه الرحلة (رحلة قبل تحديث 24.58)</div>`;
+  }
+  let dlg = document.getElementById('invoiceDlg');
+  if(!dlg){
+    dlg = document.createElement('div');
+    dlg.id = 'invoiceDlg';
+    dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+    dlg.innerHTML = `<div style="background:#1e1e1e;border:2px solid #D4AF37;border-radius:16px;padding:20px;max-width:420px;width:90%;color:#fff;line-height:2">
+      <h3 style="color:#D4AF37;margin:0 0 10px">🧾 فاتورة الرحلة</h3>
+      <div id="invoiceBody"></div>
+      <button onclick="document.getElementById('invoiceDlg').style.display='none'" style="margin-top:12px;background:#D4AF37;border:0;border-radius:8px;padding:8px 20px;font-weight:bold;cursor:pointer">إغلاق</button>
+    </div>`;
+    dlg.addEventListener('click', e=>{ if(e.target === dlg) dlg.style.display = 'none'; });
+    document.body.appendChild(dlg);
+  }
+  document.getElementById('invoiceBody').innerHTML =
+    `<div>👤 الزبون: <b>${v.riderName||'?'} ${v.riderPhone||''}</b></div>
+    <div>🏷️ الفئة: <b>${v.category||''}</b> | 📍 ${v.city||''}</div>` + rows +
+    `<hr style="border-color:#444">
+    <div>💰 المجموع الكامل: <b>${fare} ل.س</b></div>
+    <div>🏢 عمولة الشركة (${rate}%): <b>${comm} ل.س</b></div>
+    <div>🚕 صافي السائق: <b>${net} ل.س</b></div>`;
+  dlg.style.display = 'flex';
+}
+
 async function loadRides(){
   const box = document.getElementById('ridesList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
@@ -1354,6 +1431,7 @@ async function loadRides(){
     const statusAr = {searching:'🔍 يبحث عن سائق', accepted:'✅ مقبولة', arriving:'🚗 السائق قادم', ontrip:'🛣️ بالطريق', completed:'✅ مكتملة', cancelled:'❌ ملغية', error:'⚠️ خطأ'};
     Object.keys(d).sort((a,b)=> (d[b].createdAt||0) - (d[a].createdAt||0)).slice(0,20).forEach(id=>{
       const v = d[id];
+      window._ridesData[id] = v;
       if(!v || typeof v !== 'object') return;
       const st = statusAr[v.status] || v.status || '?';
       const badgeClass = v.status==='completed' ? 'approved' : (v.status==='cancelled'||v.status==='error') ? 'rejected' : 'pending';
@@ -1375,12 +1453,14 @@ async function loadRides(){
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
         🚕 السائق: ${drvName(v.driverId)}${warn}<br>
         🕐 ${v.createdAt ? new Date(v.createdAt).toLocaleString('ar') : ''}
-        ${v.pickup ? `<br>📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
-        ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
+        ${v.pickup ? `<br>📍 <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.pickup.lat}" data-lon="${v.pickup.lon}">نقطة الانطلاق</span></a>` : ''}
+        ${v.dest ? ` | 🎯 <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.dest.lat}" data-lon="${v.dest.lon}">الوجهة</span></a>` : ''}
+        <br><button onclick="showInvoice('${id}')" style="margin-top:6px;background:#D4AF37;border:0;border-radius:8px;padding:6px 14px;font-weight:bold;cursor:pointer">🧾 فاتورة</button>
         </div>
       </div>`;
     });
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+  resolveRevNames(box);
 }
 
 async function loadCancelled(){
@@ -1400,6 +1480,7 @@ async function loadCancelled(){
     let count = 0;
     sorted.forEach(id=>{
       const v = d[id];
+      window._ridesData[id] = v;
       count++;
       const drvName = (drivers[v.driverId] && drivers[v.driverId].name) || v.driverId || '—';
       const dt = v.createdAt ? new Date(v.createdAt) : null;
@@ -1421,6 +1502,7 @@ async function loadCancelled(){
         👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         🏷️ ${v.category||''} | 📍 ${v.city||''}
+        <br><button onclick="showInvoice('${id}')" style="margin-top:6px;background:#D4AF37;border:0;border-radius:8px;padding:6px 14px;font-weight:bold;cursor:pointer">🧾 فاتورة</button>
         </div>
       </div>`;
     });
@@ -1447,6 +1529,7 @@ async function loadCompleted(){
     let totalFare = 0;
     sorted.forEach(id=>{
       const v = d[id];
+      window._ridesData[id] = v;
       count++;
       totalFare += (v.fare||0);
       const drvName = (drivers[v.driverId] && drivers[v.driverId].name) || v.driverId || '?';
@@ -1461,14 +1544,16 @@ async function loadCompleted(){
         👤 <b>الزبون:</b> ${v.riderName||'?'} 📱 ${v.riderPhone||''}<br>
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         🏷️ ${v.category||''} | 📍 ${v.city||''} | ⭐ <b>التقييم:</b> ${stars}<br>
-        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
-        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
+        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.pickup.lat}" data-lon="${v.pickup.lon}">نقطة الانطلاق</span></a>` : ''}
+        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.dest.lat}" data-lon="${v.dest.lon}">الوجهة</span></a>` : ''}
+        <br><button onclick="showInvoice('${id}')" style="margin-top:6px;background:#D4AF37;border:0;border-radius:8px;padding:6px 14px;font-weight:bold;cursor:pointer">🧾 فاتورة</button>
         </div>
       </div>`;
     });
     if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مكتملة</p>';
     else box.innerHTML = `<p style="text-align:center;color:#D4AF37">📊 ${count} رحلة | 💰 ${totalFare.toLocaleString('ar')} ل.س</p>` + box.innerHTML;
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+  resolveRevNames(box);
 }
 
 // Login protection
@@ -1494,6 +1579,7 @@ async function loadRejected(){
     }).sort((a,b)=> (d[b].createdAt||0) - (d[a].createdAt||0)).slice(0, 50);
     ids.forEach(id=>{
       const v = d[id];
+      window._ridesData[id] = v;
       count++;
       // استخراج اسم السائق من rejectedBy "driverId (reason)"
       const rejStr = v.rejectedBy || '';
@@ -1512,13 +1598,15 @@ async function loadRejected(){
         📅 <b>التاريخ:</b> ${dateStr} &nbsp; 🕐 <b>الوقت:</b> ${timeStr}<br>
         💰 ${v.fare||0} ل.س | 🏷️ ${v.category||''} | 📍 ${v.city||''}<br>
         📝 <b>سبب الرفض:</b> ${reason||'غير محدد'}<br>
-        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37">نقطة الانطلاق</a>` : ''}
-        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37">الوجهة</a>` : ''}
+        ${v.pickup ? `🟢 <b>من:</b> <a href="https://www.google.com/maps?q=${v.pickup.lat},${v.pickup.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.pickup.lat}" data-lon="${v.pickup.lon}">نقطة الانطلاق</span></a>` : ''}
+        ${v.dest ? ` | 🔴 <b>إلى:</b> <a href="https://www.google.com/maps?q=${v.dest.lat},${v.dest.lon}" target="_blank" style="color:#D4AF37"><span class="rev" data-lat="${v.dest.lat}" data-lon="${v.dest.lon}">الوجهة</span></a>` : ''}
+        <br><button onclick="showInvoice('${id}')" style="margin-top:6px;background:#D4AF37;border:0;border-radius:8px;padding:6px 14px;font-weight:bold;cursor:pointer">🧾 فاتورة</button>
         </div>
       </div>`;
     });
     if(count===0) box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مرفوضة</p>';
   }catch(e){ box.innerHTML='<p style="color:#f77">خطأ: '+e.message+'</p>'; }
+  resolveRevNames(box);
 }
 function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
