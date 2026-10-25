@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>لوحة تحكم تكسي شاهين 🚕</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:linear-gradient(180deg,#0a0a0a,#111);color:#fff;min-height:100vh}
@@ -238,7 +240,16 @@ input[type="date"]:focus,input[type="month"]:focus{border-color:#D4AF37;outline:
 <button class="btn small" id="fltOff" onclick="setDriverFilter('offline')">🔴 غير متصل</button>
 </div>
 <div id="monitorList"><p style="color:#888;text-align:center">جاري التحميل...</p></div>
-<button class="btn small" onclick="loadMonitor()">🔄 تحديث</button>
+<button class="btn small" onclick="loadMonitor();loadDriverMap()">🔄 تحديث</button>
+</div>
+</div>
+
+<div class="card">
+<h2>🗺️ خريطة السائقين المتصلين</h2>
+<div id="driverMap" dir="ltr" style="height:420px;border-radius:12px;border:1px solid #D4AF37"></div>
+<div style="text-align:center;margin-top:10px">
+<button class="btn small" onclick="loadDriverMap()">🔄 تحديث الخريطة</button>
+<span id="mapStatus" style="color:#888;font-size:13px"></span>
 </div>
 </div>
 
@@ -345,7 +356,7 @@ function showTab(name, el){
   document.getElementById('navSections').style.display='none';
   document.getElementById('backBar').style.display='block';
   window.scrollTo(0,0);
-  if(name==='drivers'){ loadMonitor(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } else if(name==='fares'){ loadCommRate(); } else if(name==='daily'){ loadDailyReport(); }
+  if(name==='drivers'){ loadMonitor(); loadDriverMap(); } else if(name==='apps'){ loadApps(); } else if(name==='rides'){ loadRides(); loadRejected(); loadCompleted(); loadCancelled(); } else if(name==='riders'){ loadRiders(); } else if(name==='promos'){ loadPromos(); loadPromoProgress(); } else if(name==='ads'){ loadAds(); } else if(name==='support'){ loadSupportChats(); } else if(name==='fares'){ loadCommRate(); } else if(name==='daily'){ loadDailyReport(); }
 }
 function goHome(){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -841,6 +852,42 @@ function setReportDate(daysAgo){
   document.getElementById('reportDate').value = d.toISOString().split('T')[0];
   loadDailyReport();
 }
+// خصومات جوائز العروض (24.59): جائزة فاز بها السائق تُخصم من عمولته
+// تلقائياً — تُجمع من قيود الجوائز غير المستهلكة، ومن إدخالات التقدم
+// الفائزة التي بلا قيد (فوز قبل 24.59). تُستهلك عند تسوية الدفع.
+async function loadPrizeDiscounts(){
+  const map = {};
+  try{
+    const pr = await fb('/promo_progress.json'); const prog = await pr.json() || {};
+    const cr = await fb('/commission_credits.json'); const credits = await cr.json() || {};
+    Object.keys(prog).forEach(promoId=>{
+      const drivers = prog[promoId];
+      if(!drivers || typeof drivers !== 'object') return;
+      Object.keys(drivers).forEach(did=>{
+        const v = drivers[did];
+        if(!v || !v.won || !(v.reward > 0)) return;
+        const cred = (credits[did] && credits[did][promoId]) || null;
+        if(cred && cred.applied) return;
+        (map[did] = map[did] || []).push({key: promoId,
+          title: v.promoTitle || decodeURIComponent(promoId), amount: v.reward});
+      });
+    });
+    Object.keys(credits).forEach(did=>{
+      Object.keys(credits[did] || {}).forEach(promoId=>{
+        const c = credits[did][promoId];
+        if(!c || c.applied || !(c.amount > 0)) return;
+        const arr = (map[did] = map[did] || []);
+        if(!arr.some(x=>x.key === promoId))
+          arr.push({key: promoId, title: c.promoTitle || promoId, amount: c.amount});
+      });
+    });
+  }catch(e){}
+  return map;
+}
+function prizeLines(disc){
+  return disc.map(x=>`<br><span style="color:#2a2">🎁 خصم مبلغ الجائزة — فاز بعرض ${x.title}: −${x.amount.toLocaleString()} ل.س</span>`).join('');
+}
+
 async function loadDailyReport(){
   const dateInput = document.getElementById('reportDate').value;
   const date = dateInput || new Date().toISOString().split('T')[0];
@@ -860,8 +907,8 @@ async function loadDailyReport(){
     // جلب السائقين
     const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
-    // تجميع حسب السائق
-    const stats = {};
+    // جلب خصومات جوائز العروض غير المستهلكة
+    const discounts = await loadPrizeDiscounts();
     Object.keys(rides).forEach(rid=>{
       const r = rides[rid];
       if(r.status !== 'completed') return;
@@ -892,15 +939,17 @@ async function loadDailyReport(){
       const dname = (drivers[did] && drivers[did].name) || did;
       const comm = Math.round(s.earnings * rate / 100);
       const paid = (drivers[did] && drivers[did].commissionPaid) || 0;
-      // المستحق = العمولة المحسوبة - المدفوع
-      const owed = Math.max(0, comm - paid);
+      const disc = discounts[did] || [];
+      const discTotal = disc.reduce((a,x)=>a+x.amount,0);
+      // المستحق = العمولة المحسوبة - المدفوع - خصم جوائز العروض
+      const owed = Math.max(0, comm - paid - discTotal);
       totalEarn += s.earnings;
       totalComm += comm;
       html += `<tr><td style="padding:8px;border:1px solid #444">🚕 ${dname}</td>
       <td style="padding:8px;border:1px solid #444;text-align:center">${s.trips}</td>
       <td style="padding:8px;border:1px solid #444">${s.earnings.toLocaleString()} ل.س</td>
       <td style="padding:8px;border:1px solid #444;color:#D4AF37">${comm.toLocaleString()} ل.س</td>
-      <td style="padding:8px;border:1px solid #444;color:#f77">${owed.toLocaleString()} ل.س<br>
+      <td style="padding:8px;border:1px solid #444;color:#f77">${owed.toLocaleString()} ل.س${prizeLines(disc)}<br>
       ${owed > 0 ? `<button class="btn small" style="background:#2a2;color:#fff;margin-top:4px" onclick="markCommissionPaid('${did}',${owed})">✅ تم الدفع</button>` : ''}</td></tr>`;
     });
     html += `</table>
@@ -937,6 +986,8 @@ async function loadMonthlyReport(){
     const rides = await rr.json() || {};
     const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
+    // جلب خصومات جوائز العروض غير المستهلكة
+    const discounts = await loadPrizeDiscounts();
     // تجميع حسب السائق ثم حسب اليوم
     const stats = {};
     const dayTotals = {};
@@ -986,12 +1037,14 @@ async function loadMonthlyReport(){
       const dname = (drivers[did] && drivers[did].name) || did;
       const comm = Math.round(s.earnings * rate / 100);
       const paid = (drivers[did] && drivers[did].commissionPaid) || 0;
-      const owed = Math.max(0, comm - paid);
+      const disc = discounts[did] || [];
+      const discTotal = disc.reduce((a,x)=>a+x.amount,0);
+      const owed = Math.max(0, comm - paid - discTotal);
       html += `<tr><td style="padding:8px;border:1px solid #444">🚕 ${dname}</td>
       <td style="padding:8px;border:1px solid #444;text-align:center">${s.trips}</td>
       <td style="padding:8px;border:1px solid #444">${s.earnings.toLocaleString()} ل.س</td>
       <td style="padding:8px;border:1px solid #444;color:#D4AF37">${comm.toLocaleString()} ل.س</td>
-      <td style="padding:8px;border:1px solid #444;color:#f77">${owed.toLocaleString()} ل.س<br>
+      <td style="padding:8px;border:1px solid #444;color:#f77">${owed.toLocaleString()} ل.س${prizeLines(disc)}<br>
       ${owed > 0 ? `<button class="btn small" style="background:#2a2;color:#fff;margin-top:4px" onclick="markCommissionPaid('${did}',${owed})">✅ تم الدفع</button>` : ''}</td></tr>`;
     });
     html += `</table><h4>📅 حسب اليوم:</h4>
@@ -1202,6 +1255,54 @@ async function setSuspended(driverId, suspend){
   }catch(e){ alert('خطأ: '+e.message); }
 }
 
+// خريطة السائقين المتصلين (24.59): Leaflet + OpenStreetMap — بلا مفتاح،
+// تُحدث كل 30 ثانية مع قائمة السائقين وكلما فُتح تبويب السائقين
+let driverMap = null, driverMarkers = [];
+async function loadDriverMap(){
+  const st = document.getElementById('mapStatus');
+  try{
+    if(typeof L === 'undefined'){
+      if(st) st.textContent = 'تعذّرت تحميل مكتبة الخريطة (تحقق من الاتصال)';
+      return;
+    }
+    const panel = document.getElementById('panel-drivers');
+    if(!panel || !panel.classList.contains('active')) return; // الخريطة مخفية — تُبنى عند فتح التبويب
+    const r = await fb('/drivers.json'); const d = await r.json() || {};
+    const now = Date.now();
+    const online = [];
+    Object.keys(d).forEach(id=>{
+      if(id.indexOf('_debug_') === 0) return;
+      const v = d[id];
+      if(!v || typeof v !== 'object') return;
+      const age = now - (v.updatedAt || 0);
+      const lat = parseFloat(v.lat), lon = parseFloat(v.lon);
+      if(!v.online || age > 120000 || isNaN(lat) || isNaN(lon)) return;
+      online.push({id, v, lat, lon, age});
+    });
+    if(!driverMap){
+      driverMap = L.map('driverMap').setView([34.726, 36.723], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap'
+      }).addTo(driverMap);
+    }
+    driverMarkers.forEach(m=>driverMap.removeLayer(m));
+    driverMarkers = [];
+    const bounds = [];
+    online.forEach(o=>{
+      const mins = Math.max(0, Math.round(o.age / 60000));
+      const m = L.marker([o.lat, o.lon]).addTo(driverMap);
+      m.bindPopup(`<b>🚕 ${o.v.name || o.id}</b><br>📱 ${o.v.phone || ''}<br>🚗 ${o.v.carModel || o.v.car || ''} ${o.v.color || ''} ${o.v.plate || ''}<br>📍 ${o.v.city || ''}<br>🕐 آخر تحديث: قبل ${mins} دقيقة`);
+      driverMarkers.push(m);
+      bounds.push([o.lat, o.lon]);
+    });
+    if(bounds.length) driverMap.fitBounds(bounds, {padding: [30, 30]});
+    setTimeout(()=>{ if(driverMap) driverMap.invalidateSize(); }, 200);
+    if(st) st.textContent = online.length
+      ? `🟢 ${online.length} سائق متصل`
+      : 'لا يوجد سائقون متصلون حالياً';
+  }catch(e){ if(st) st.textContent = 'خطأ: ' + e.message; }
+}
+
 async function loadMonitor(){
   const box = document.getElementById('monitorList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
@@ -1233,8 +1334,8 @@ async function loadMonitor(){
     box.innerHTML='';
     let count = 0;
     Object.keys(d).forEach(id=>{
+      if(id.indexOf('_debug_') === 0) return; // سجلات تشخيص لا سائقين
       const v = d[id];
-      const age = Math.round((now - (v.updatedAt||0))/1000);
       const isOnline = v.online && age <= 120;
       // تطبيق الفلتر
       if(driverFilter==='online' && !isOnline) return;
@@ -1299,6 +1400,15 @@ async function markCommissionPaid(id, amount){
     const prevPaid = gd.commissionPaid || 0;
     await fb('/drivers/'+id+'.json', {method:'PATCH',
       body: JSON.stringify({commissionOwed: 0, commissionPaid: prevPaid + amount})});
+    // استهلاك خصومات الجوائز المخصومة بهذه التسوية حتى لا تتكرر بتقرير لاحق
+    try{
+      const discMap = await loadPrizeDiscounts();
+      const keys = (discMap[id] || []).map(x=>x.key);
+      for(const k of keys){
+        await fb('/commission_credits/'+id+'/'+encodeURIComponent(k)+'.json',
+          {method:'PATCH', body: JSON.stringify({applied: true})});
+      }
+    }catch(e2){}
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
 }
@@ -1331,7 +1441,7 @@ async function setDriverRate(id, current){
   }catch(e){ alert('خطأ: '+e.message); }
 }
 // Auto-refresh monitor every 30s when visible
-setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
+setInterval(()=>{ if(document.getElementById('panel-drivers').classList.contains('active')){ loadMonitor(); loadDriverMap(); } if(document.getElementById('panel-rides').classList.contains('active')){ loadRides(); } }, 30000);
 
 // أسماء الشوارع من الإحداثيات (ترجمة عكسية Photon — نفس خدمة البحث بالتطبيق)
 const revCache = {};
@@ -1615,6 +1725,7 @@ function doLogin(){
     sessionStorage.setItem('sr_auth','1');
     document.getElementById('loginOverlay').style.display='none';
     document.getElementById('appContent').style.display='block';
+    setTimeout(loadDriverMap, 300);
   } else {
     document.getElementById('loginErr').style.display='block';
   }
