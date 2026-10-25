@@ -361,7 +361,7 @@ async function loadAds(){
   const box = document.getElementById('adsList');
   box.innerHTML = '<p style="color:#888">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/config/ads.json');
+    const r = await fb('/config/ads.json');
     const d = await r.json();
     ads = Array.isArray(d) ? d : [];
     renderAds();
@@ -383,7 +383,7 @@ function renderAds(){
 function addAd(){ ads.push({title:'',desc:'',image:'',link:''}); renderAds(); }
 async function saveAds(){
   try{
-    const r = await fb(+'/config/ads.json',{method:'PUT',body:JSON.stringify(ads),headers:{'Content-Type':'application/json'}});
+    const r = await fb('/config/ads.json',{method:'PUT',body:JSON.stringify(ads),headers:{'Content-Type':'application/json'}});
     if(r.ok) showStatus('تم حفظ الإعلانات ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
@@ -394,7 +394,7 @@ let chatPollTimer = null;
 async function deleteChat(chatId){
   if(!confirm('حذف هذه المحادثة؟')) return;
   try{
-    await fb(+'/support_chats/'+chatId+'.json', {method:'DELETE'});
+    await fb('/support_chats/'+chatId+'.json', {method:'DELETE'});
     if(currentChatId === chatId){ currentChatId = null; document.getElementById('chatMsgs').innerHTML=''; }
     loadSupportChats();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -402,7 +402,7 @@ async function deleteChat(chatId){
 async function deleteAllChats(){
   if(!confirm('حذف كل المحادثات؟ لا يمكن التراجع!')) return;
   try{
-    await fb(+'/support_chats.json', {method:'DELETE'});
+    await fb('/support_chats.json', {method:'DELETE'});
     currentChatId = null;
     document.getElementById('chatMsgs').innerHTML='';
     loadSupportChats();
@@ -412,7 +412,7 @@ async function loadSupportChats(){
   const box = document.getElementById('chatList');
   box.innerHTML = '<p style="color:#888">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/support_chats.json');
+    const r = await fb('/support_chats.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888">لا توجد محادثات</p>'; return; }
     box.innerHTML = `<button class="btn small" style="background:#a33;color:#fff;margin-bottom:8px" onclick="deleteAllChats()">🗑️ مسح الكل</button>`;
@@ -448,7 +448,7 @@ async function openChat(chatId){
   document.getElementById('chatTitle').textContent = '💬 ' + chatId;
   // تعليم كمقروءة
   try{
-    await fb(+'/support_chats/'+chatId+'/lastReadByAdmin.json', {method:'PUT', body: JSON.stringify(Date.now())});
+    await fb('/support_chats/'+chatId+'/lastReadByAdmin.json', {method:'PUT', body: JSON.stringify(Date.now())});
   }catch(e){}
   loadChatMsgs();
   // جلب معلومات السائق/الزبون الكاملة
@@ -465,7 +465,7 @@ async function loadChatUserInfo(chatId){
     const isDriver = chatId.startsWith('driver_');
     if(!isDriver) return;
     // البحث عن السائق برقم الهاتف
-    const r = await fb(+'/drivers.json');
+    const r = await fb('/drivers.json');
     const d = await r.json();
     if(!d) return;
     let driver = null;
@@ -530,7 +530,7 @@ function showDriverInfoPopup(){
 async function loadChatMsgs(){
   if(!currentChatId) return;
   try{
-    const r = await fb(+'/support_chats/'+currentChatId+'/messages.json');
+    const r = await fb('/support_chats/'+currentChatId+'/messages.json');
     const d = await r.json();
     const box = document.getElementById('chatMsgs');
     box.innerHTML='';
@@ -553,7 +553,7 @@ async function sendSupportMsg(){
   if(!txt || !currentChatId) return;
   inp.value='';
   try{
-    await fb(+'/support_chats/'+currentChatId+'/messages.json', {
+    await fb('/support_chats/'+currentChatId+'/messages.json', {
       method:'POST',
       body: JSON.stringify({from:'support', text:txt, ts:Date.now()}),
       headers:{'Content-Type':'application/json'}
@@ -571,7 +571,7 @@ function openDriverChat(driverId, driverName){
   // البحث عن المحادثة الموجودة أو إنشاؤها
   setTimeout(async ()=>{
     try{
-      const r = await fb(+'/support_chats.json');
+      const r = await fb('/support_chats.json');
       const d = await r.json();
       let found = null;
       if(d){
@@ -594,7 +594,7 @@ async function loadApps(){
   const box = document.getElementById('appsList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/driver_applications.json');
+    const r = await fb('/driver_applications.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد طلبات جديدة</p>'; return; }
     const sorted = Object.keys(d).filter(id=>{
@@ -639,7 +639,7 @@ let appsCache = {};
 async function previewApp(id){
   try{
     if(!appsCache[id]){
-      const r = await fb(+'/driver_applications/'+id+'.json');
+      const r = await fb('/driver_applications/'+id+'.json');
       appsCache[id] = await r.json();
     }
     const v = appsCache[id];
@@ -681,10 +681,10 @@ async function approveApp(appId, driverId){  const cat = prompt('فئة السي
   const cats = {'1':'economy','2':'family','3':'modern','4':'vip'};
   const category = cats[cat.trim()] || 'economy';
   try{
-    await fb(+'/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"approved"'});
+    await fb('/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"approved"'});
     if(driverId){
-      await fb(+'/drivers/'+driverId+'/approved.json', {method:'PUT', body:'true'});
-      await fb(+'/drivers/'+driverId+'/carCategory.json', {method:'PUT', body:JSON.stringify(category)});
+      await fb('/drivers/'+driverId+'/approved.json', {method:'PUT', body:'true'});
+      await fb('/drivers/'+driverId+'/carCategory.json', {method:'PUT', body:JSON.stringify(category)});
     }
     alert('تم قبول السائق ✅ (فئة: '+category+')');
     loadApps(); loadMonitor();
@@ -694,7 +694,7 @@ async function approveApp(appId, driverId){  const cat = prompt('فئة السي
 async function rejectApp(appId){
   if(!confirm('رفض هذا الطلب؟')) return;
   try{
-    await fb(+'/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"rejected"'});
+    await fb('/driver_applications/'+appId+'/status.json', {method:'PUT', body:'"rejected"'});
     alert('تم رفض الطلب');
     loadApps();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -715,7 +715,7 @@ async function loadRiders(){
   const q = (document.getElementById('riderSearch').value||'').trim().toLowerCase();
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/rides.json');
+    const r = await fb('/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد زبائن</p>'; return; }
     // تجميع الزبائن من الرحلات
@@ -770,7 +770,7 @@ const DEFAULTS = {economy:{base:15000,perKm:6000}, family:{base:22000,perKm:9000
 
 async function loadFares(){
   try{
-    const r = await fb(+'/config/fares.json');
+    const r = await fb('/config/fares.json');
     const d = await r.json();
     const box = document.getElementById('faresList'); box.innerHTML='';
     // ترويسة الأعمدة
@@ -799,7 +799,7 @@ async function saveFares(){
     };
   });
   try{
-    const r = await fb(+'/config/fares.json',{method:'PUT',body:JSON.stringify(fares),headers:{'Content-Type':'application/json'}});
+    const r = await fb('/config/fares.json',{method:'PUT',body:JSON.stringify(fares),headers:{'Content-Type':'application/json'}});
     if(r.ok) showStatus('تم حفظ الأسعار ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
@@ -807,14 +807,14 @@ async function saveCommRate(){
   const v = parseFloat(document.getElementById('commRate').value);
   if(isNaN(v) || v < 0 || v > 100){ showStatus('نسبة غير صالحة','err'); return; }
   try{
-    const r = await fb(+'/config/commission.json',{method:'PUT',
+    const r = await fb('/config/commission.json',{method:'PUT',
       body:JSON.stringify({rate: v}),headers:{'Content-Type':'application/json'}});
     if(r.ok) showStatus('تم حفظ نسبة العمولة: '+v+'% ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
 async function loadCommRate(){
   try{
-    const r = await fb(+'/config/commission.json');
+    const r = await fb('/config/commission.json');
     const d = await r.json();
     if(d && d.rate !== undefined){
       const el = document.getElementById('commRate');
@@ -828,7 +828,7 @@ async function saveCommRateTop(){
   const v = parseFloat(document.getElementById('commRateTop').value);
   if(isNaN(v) || v < 0 || v > 100){ showStatus('نسبة غير صالحة','err'); return; }
   try{
-    const r = await fb(+'/config/commission.json',{method:'PUT',
+    const r = await fb('/config/commission.json',{method:'PUT',
       body:JSON.stringify({rate: v}),headers:{'Content-Type':'application/json'}});
     if(r.ok){ showStatus('تم حفظ نسبة العمولة للكل: '+v+'% ✅','ok'); loadCommRate(); }
     else showStatus('فشل الحفظ','err');
@@ -850,15 +850,15 @@ async function loadDailyReport(){
     // جلب نسبة العمولة
     let rate = 10;
     try{
-      const cr = await fb(+'/config/commission.json');
+      const cr = await fb('/config/commission.json');
       const cd = await cr.json();
       if(cd && cd.rate !== undefined) rate = cd.rate;
     }catch(e){}
     // جلب الرحلات المكتملة
-    const rr = await fb(+'/rides.json');
+    const rr = await fb('/rides.json');
     const rides = await rr.json() || {};
     // جلب السائقين
-    const dr = await fb(+'/drivers.json');
+    const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
     // تجميع حسب السائق
     const stats = {};
@@ -929,13 +929,13 @@ async function loadMonthlyReport(){
   try{
     let rate = 10;
     try{
-      const cr = await fb(+'/config/commission.json');
+      const cr = await fb('/config/commission.json');
       const cd = await cr.json();
       if(cd && cd.rate !== undefined) rate = cd.rate;
     }catch(e){}
-    const rr = await fb(+'/rides.json');
+    const rr = await fb('/rides.json');
     const rides = await rr.json() || {};
-    const dr = await fb(+'/drivers.json');
+    const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
     // تجميع حسب السائق ثم حسب اليوم
     const stats = {};
@@ -1016,7 +1016,7 @@ async function loadMonthlyReport(){
 let promos = [];
 async function loadPromos(){
   try{
-    const r = await fb(+'/config/promotions.json');
+    const r = await fb('/config/promotions.json');
     const d = await r.json();
     promos = Array.isArray(d) ? d : (d ? Object.values(d) : []);
     renderPromos();
@@ -1040,7 +1040,7 @@ function renderPromos(){
 function addPromo(){ promos.push({title:'',desc:'',image:''}); renderPromos(); }
 async function savePromos(){
   try{
-    const r = await fb(+'/config/promotions.json',{method:'PUT',body:JSON.stringify(promos),headers:{'Content-Type':'application/json'}});
+    const r = await fb('/config/promotions.json',{method:'PUT',body:JSON.stringify(promos),headers:{'Content-Type':'application/json'}});
     if(r.ok) showStatus('تم حفظ العروض ✅','ok'); else showStatus('فشل الحفظ','err');
   }catch(e){ showStatus('خطأ: '+e.message,'err'); }
 }
@@ -1049,7 +1049,7 @@ async function loadPromoProgress(){
   const box = document.getElementById('promoProgress');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/promo_progress.json');
+    const r = await fb('/promo_progress.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون مفعّلون لأي عرض</p>'; return; }
     box.innerHTML='';
@@ -1088,7 +1088,7 @@ async function loadDrivers(){
   const box = document.getElementById('driversList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/driver_applications.json');
+    const r = await fb('/driver_applications.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد طلبات</p>'; return; }
     box.innerHTML='';
@@ -1121,13 +1121,13 @@ async function loadDrivers(){
 
 async function setDriverStatus(id, status){
   try{
-    await fb(+'/driver_applications/'+id+'/status.json',{method:'PUT',body:JSON.stringify(status)});
+    await fb('/driver_applications/'+id+'/status.json',{method:'PUT',body:JSON.stringify(status)});
     // Also update the driver's record if approved
     if(status==='approved'){
-      const r = await fb(+'/driver_applications/'+id+'.json');
+      const r = await fb('/driver_applications/'+id+'.json');
       const a = await r.json();
       if(a && a.driverId){
-        await fb(+'/drivers/'+a.driverId+'/approved.json',{method:'PUT',body:'true'});
+        await fb('/drivers/'+a.driverId+'/approved.json',{method:'PUT',body:'true'});
       }
     }
     showStatus(status==='approved' ? 'تم قبول السائق ✅' : 'تم رفض السائق','ok');
@@ -1154,7 +1154,7 @@ async function setCarCategory(driverId){
   const cats = {'1':'economy','2':'family','3':'modern','4':'vip'};
   const category = cats[cat.trim()] || 'economy';
   try{
-    await fb(+'/drivers/'+driverId+'/carCategory.json', {method:'PUT', body: JSON.stringify(category)});
+    await fb('/drivers/'+driverId+'/carCategory.json', {method:'PUT', body: JSON.stringify(category)});
     alert('تم تحديث الفئة ✅');
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -1176,7 +1176,7 @@ async function editDriver(driverId, v){
   try{
     const updates = {name:name, phone:phone, carModel:car, color:color, plate:plate, city:city};
     for(const k in updates){
-      await fb(+'/drivers/'+driverId+'/'+k+'.json', {method:'PUT', body: JSON.stringify(updates[k])});
+      await fb('/drivers/'+driverId+'/'+k+'.json', {method:'PUT', body: JSON.stringify(updates[k])});
     }
     alert('تم تحديث بيانات السائق ✅');
     loadMonitor();
@@ -1187,7 +1187,7 @@ async function deleteDriver(driverId, driverName){
   if(!confirm(`⚠️ حذف نهائي!\n\nهل أنت متأكد من حذف السائق "${driverName}" نهائياً من النظام؟\nلا يمكن التراجع!`)) return;
   if(!confirm(`تأكيد أخير: حذف ${driverName} نهائياً؟`)) return;
   try{
-    await fb(+'/drivers/'+driverId+'.json', { method:'DELETE' });
+    await fb('/drivers/'+driverId+'.json', { method:'DELETE' });
     alert('تم حذف السائق نهائياً ✅');
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -1195,7 +1195,7 @@ async function deleteDriver(driverId, driverName){
 
 async function setSuspended(driverId, suspend){
   try{
-    await fb(+'/drivers/'+driverId+'/suspended.json', {
+    await fb('/drivers/'+driverId+'/suspended.json', {
       method:'PUT', body: JSON.stringify(suspend)
     });
     loadMonitor();
@@ -1206,20 +1206,20 @@ async function loadMonitor(){
   const box = document.getElementById('monitorList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/drivers.json');
+    const r = await fb('/drivers.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا يوجد سائقون</p>'; return; }
     // جلب نسبة العمولة العامة
     let globalRate = 10;
     try{
-      const cr = await fb(+'/config/commission.json');
+      const cr = await fb('/config/commission.json');
       const cd = await cr.json();
       if(cd && cd.rate !== undefined) globalRate = cd.rate;
     }catch(e){}
     // حساب الأرباح من الرحلات المكتملة (مصدر موثوق)
     let rideStats = {};
     try{
-      const rr = await fb(+'/rides.json');
+      const rr = await fb('/rides.json');
       const rides = await rr.json() || {};
       Object.keys(rides).forEach(rid=>{
         const rv = rides[rid];
@@ -1294,10 +1294,10 @@ async function markCommissionPaid(id, amount){
   if(!confirm('تأكيد استلام '+amount.toLocaleString()+' ل.س عمولة من السائق؟')) return;
   try{
     // جلب المدفوع السابق لتراكمه
-    const gr = await fb(+'/drivers/'+id+'.json');
+    const gr = await fb('/drivers/'+id+'.json');
     const gd = await gr.json() || {};
     const prevPaid = gd.commissionPaid || 0;
-    await fb(+'/drivers/'+id+'.json', {method:'PATCH',
+    await fb('/drivers/'+id+'.json', {method:'PATCH',
       body: JSON.stringify({commissionOwed: 0, commissionPaid: prevPaid + amount})});
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -1308,7 +1308,7 @@ async function adjustCommission(id, current){
   const n = parseInt(v);
   if(isNaN(n) || n < 0){ alert('مبلغ غير صالح'); return; }
   try{
-    await fb(+'/drivers/'+id+'.json', {method:'PATCH',
+    await fb('/drivers/'+id+'.json', {method:'PATCH',
       body: JSON.stringify({commissionOwed: n})});
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -1320,12 +1320,12 @@ async function setDriverRate(id, current){
     let body;
     if(v.trim() === ''){
       // حذف النسبة الخاصة → عودة للعامة
-      await fb(+'/drivers/'+id+'/commissionRate.json', {method:'DELETE'});
+      await fb('/drivers/'+id+'/commissionRate.json', {method:'DELETE'});
     } else {
       const n = parseFloat(v);
       if(isNaN(n) || n < 0 || n > 100){ alert('نسبة غير صالحة'); return; }
       body = JSON.stringify({commissionRate: n});
-      await fb(+'/drivers/'+id+'.json', {method:'PATCH', body});
+      await fb('/drivers/'+id+'.json', {method:'PATCH', body});
     }
     loadMonitor();
   }catch(e){ alert('خطأ: '+e.message); }
@@ -1337,13 +1337,13 @@ async function loadRides(){
   const box = document.getElementById('ridesList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/rides.json');
+    const r = await fb('/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات</p>'; return; }
     // جلب أسماء السائقين
     let drivers = {};
     try{
-      const dr = await fb(+'/drivers.json');
+      const dr = await fb('/drivers.json');
       drivers = await dr.json() || {};
     }catch(e){}
     const drvName = (id) => {
@@ -1387,10 +1387,10 @@ async function loadCancelled(){
   const box = document.getElementById('cancelledList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/rides.json');
+    const r = await fb('/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات ملغاة</p>'; return; }
-    const dr = await fb(+'/drivers.json');
+    const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
     const sorted = Object.keys(d).filter(id=>{
       const v = d[id];
@@ -1432,10 +1432,10 @@ async function loadCompleted(){
   const box = document.getElementById('completedList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/rides.json');
+    const r = await fb('/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مكتملة</p>'; return; }
-    const dr = await fb(+'/drivers.json');
+    const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
     // ترتيب حسب createdAt تنازلياً
     const sorted = Object.keys(d).filter(id=>{
@@ -1479,13 +1479,13 @@ async function loadRejected(){
   const box = document.getElementById('rejectedList');
   box.innerHTML = '<p style="color:#888;text-align:center">جاري التحميل...</p>';
   try{
-    const r = await fb(+'/rides.json');
+    const r = await fb('/rides.json');
     const d = await r.json();
     if(!d){ box.innerHTML='<p style="color:#888;text-align:center">لا توجد رحلات مرفوضة</p>'; return; }
     box.innerHTML='';
     let count = 0;
     // جلب أسماء السائقين
-    const dr = await fb(+'/drivers.json');
+    const dr = await fb('/drivers.json');
     const drivers = await dr.json() || {};
     // ترتيب حسب الأحدث
     const ids = Object.keys(d).filter(id=>{
